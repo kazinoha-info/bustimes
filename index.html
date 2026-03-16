@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>バス時刻表</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-5">
+    <div class="max-w-md mx-auto bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div class="bg-blue-600 p-4 text-white text-center">
+            <h1 id="stopName" class="text-xl font-bold">読み込み中...</h1>
+        </div>
+        
+        <div id="busList" class="p-4 space-y-4"></div>
+
+        <button onclick="alert('全時刻表を表示します')" class="w-full bg-gray-200 py-3 text-sm font-bold hover:bg-gray-300 transition">
+            一覧を表示
+        </button>
+    </div>
+
+    <script>
+        // あとでFirebaseから取るデータ（今は仮）
+        const allSchedules = [
+            { line: "系統01", time: "22:30", dest: "駅前行" },
+            { line: "系統02", time: "22:45", dest: "中央病院行" },
+            { line: "系統01", time: "23:05", dest: "駅前行" },
+            { line: "系統03", time: "23:30", dest: "南口行" }
+        ];
+
+        function updateDisplay() {
+            const now = new Date();
+            const nowStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+            
+            // 現在時刻より後のバスを3つ選ぶ
+            const nextBuses = allSchedules
+                .filter(bus => bus.time > nowStr)
+                .slice(0, 3);
+
+            const container = document.getElementById('busList');
+            container.innerHTML = nextBuses.map(bus => `
+                <div class="flex justify-between items-center border-b pb-2">
+                    <div>
+                        <div class="text-xs text-blue-500 font-bold">${bus.line}</div>
+                        <div class="text-lg font-bold">${bus.dest}</div>
+                    </div>
+                    <div class="text-3xl font-mono text-blue-700">${bus.time}</div>
+                </div>
+            `).join('');
+
+            document.getElementById('stopName').innerText = "青空バス停";
+        }
+
+        // 10秒ごとに自動更新
+        setInterval(updateDisplay, 10000);
+        updateDisplay();
+    </script>
+</body>
+</html>
