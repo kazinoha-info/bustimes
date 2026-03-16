@@ -3,57 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>バス時刻表</title>
+    <title>善光寺大門 バス時刻表</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .bus-row { transition: all 0.5s ease-in-out; }
+        .hidden-list { display: none; }
+        /* フェードインアニメーション */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-in { animation: fadeIn 0.5s ease-out forwards; }
+    </style>
 </head>
-<body class="bg-gray-100 p-5">
-    <div class="max-w-md mx-auto bg-white rounded-2xl shadow-lg overflow-hidden">
-        <div class="bg-blue-600 p-4 text-white text-center">
-            <h1 id="stopName" class="text-xl font-bold">読み込み中...</h1>
-        </div>
-        
-        <div id="busList" class="p-4 space-y-4"></div>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-4 font-sans">
 
-        <button onclick="alert('全時刻表を表示します')" class="w-full bg-gray-200 py-3 text-sm font-bold hover:bg-gray-300 transition">
-            一覧を表示
-        </button>
+    <div class="max-w-md mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-black text-yellow-400 tracking-tighter">善光寺大門</h1>
+            <p class="text-slate-400 text-sm mt-1">長野駅方面 行き</p>
+        </header>
+
+        <div id="nextBusContainer" class="space-y-4">
+            <p class="text-center text-slate-500 animate-pulse">バス情報を確認中...</p>
+        </div>
+
+        <div class="mt-10">
+            <button onclick="toggleAllList()" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 py-4 rounded-2xl font-bold transition-all shadow-lg">
+                すべての時刻表を表示
+            </button>
+        </div>
+
+        <div id="fullList" class="hidden-list mt-6 bg-slate-800/50 rounded-2xl p-6 backdrop-blur-md border border-slate-700 shadow-2xl">
+            <h2 class="font-bold mb-4 border-b border-slate-700 pb-2 text-yellow-500 text-center">本日の運行ダイヤ</h2>
+            <div id="fullListContent" class="space-y-3 text-sm h-96 overflow-y-auto pr-2"></div>
+        </div>
     </div>
 
-    <script>
-        // あとでFirebaseから取るデータ（今は仮）
-        const allSchedules = [
-            { line: "系統01", time: "22:30", dest: "駅前行" },
-            { line: "系統02", time: "22:45", dest: "中央病院行" },
-            { line: "系統01", time: "23:05", dest: "駅前行" },
-            { line: "系統03", time: "23:30", dest: "南口行" }
-        ];
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        function updateDisplay() {
+        const firebaseConfig = {
+            apiKey: "AIzaSyCWcJ5BioNRhqVF7o6GfQJ8ui9OZSWD33M",
+            authDomain: "bus-timetable-2d2a1.firebaseapp.com",
+            databaseURL: "https://bus-timetable-2d2a1-default-rtdb.firebaseio.com/",
+            projectId: "bus-timetable-2d2a1",
+            storageBucket: "bus-timetable-2d2a1.firebasestorage.app",
+            messagingSenderId: "G-LJCQFRZT8H",
+            appId: "1:786927724439:web:ceee42521343fde00306d2"
+        };
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Firebaseからデータを取得
+        const busRef = ref(db, 'timetables');
+        onValue(busRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                // データを時間順にソート
+                const sortedData = Object.values(data).sort((a, b) => a.time.localeCompare(b.time));
+                
+                // 初回描画
+                updateUI(sortedData);
+                
+                // 1分ごとに「時間が過ぎたバスを消す」判定を行う
+                setInterval(() => updateUI(sortedData), 60000);
+            }
+        });
+
+        function updateUI(data) {
             const now = new Date();
-            const nowStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
-            
-            // 現在時刻より後のバスを3つ選ぶ
-            const nextBuses = allSchedules
-                .filter(bus => bus.time > nowStr)
-                .slice(0, 3);
+            const currentTime = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
 
-            const container = document.getElementById('busList');
-            container.innerHTML = nextBuses.map(bus => `
-                <div class="flex justify-between items-center border-b pb-2">
-                    <div>
-                        <div class="text-xs text-blue-500 font-bold">${bus.line}</div>
-                        <div class="text-lg font-bold">${bus.dest}</div>
+            // 【重要】現在時刻より「後」のバスだけを抽出
+            const upcoming = data.filter(bus => bus.time >= currentTime).slice(0, 3);
+            
+            const container = document.getElementById('nextBusContainer');
+            if (upcoming.length === 0) {
+                container.innerHTML = '<div class="text-center p-10 bg-slate-800 rounded-3xl border border-dashed border-slate-600 text-slate-500 text-lg">本日の運行はすべて終了しました</div>';
+            } else {
+                container.innerHTML = upcoming.map((bus, index) => `
+                    <div class="bus-row animate-in bg-slate-800 p-6 rounded-3xl border-l-8 border-yellow-500 shadow-xl flex justify-between items-center" style="animation-delay: ${index * 0.1}s">
+                        <div>
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="bg-yellow-500 text-slate-900 text-xs font-black px-2 py-0.5 rounded-full uppercase">${bus.lineNum}</span>
+                                <span class="text-slate-400 text-xs font-medium">系統</span>
+                            </div>
+                            <div class="text-2xl font-bold tracking-tight">${bus.destination}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-4xl font-mono font-bold text-yellow-400">${bus.time}</div>
+                            <div class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1 italic">Departure</div>
+                        </div>
                     </div>
-                    <div class="text-3xl font-mono text-blue-700">${bus.time}</div>
+                `).join('');
+            }
+
+            // 全一覧（過去のバスは半透明にする）
+            const fullListContent = document.getElementById('fullListContent');
+            fullListContent.innerHTML = data.map(bus => `
+                <div class="flex justify-between items-center border-b border-slate-700/50 pb-2 ${bus.time < currentTime ? 'opacity-20 grayscale' : ''}">
+                    <div class="flex items-center gap-3">
+                        <span class="text-yellow-500 font-mono font-bold w-8">${bus.lineNum}</span>
+                        <span class="text-slate-200 font-medium">${bus.destination}</span>
+                    </div>
+                    <span class="font-mono text-lg ${bus.time >= currentTime ? 'text-white' : ''}">${bus.time}</span>
                 </div>
             `).join('');
-
-            document.getElementById('stopName').innerText = "青空バス停";
         }
 
-        // 10秒ごとに自動更新
-        setInterval(updateDisplay, 10000);
-        updateDisplay();
+        window.toggleAllList = () => {
+            const list = document.getElementById('fullList');
+            list.classList.toggle('hidden-list');
+            if(!list.classList.contains('hidden-list')) {
+                list.scrollIntoView({ behavior: 'smooth' });
+            }
+        };
     </script>
 </body>
 </html>
