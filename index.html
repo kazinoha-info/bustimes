@@ -62,16 +62,21 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        let currentStopId = 'stop1';
-        let allBusData = []; // データを保持
+let currentStopId = 'stop1';
+        let allBusData = []; 
 
-        // 時計
+        // 【重要】時計の更新と一緒に、30秒ごとに画面の再描画もチェックする
         setInterval(() => {
             const now = new Date();
-            document.getElementById('liveClock').innerText = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
-        }, 1000);
+            const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+            document.getElementById('liveClock').innerText = timeStr;
+            
+            // データがあれば再描画（これで時間切れのバスが消える）
+            if (allBusData.length > 0) {
+                render(allBusData);
+            }
+        }, 1000); // 1秒ごとに時計を更新しつつ、描画も管理
 
-        // バス停切り替え
         window.switchStop = (id, label) => {
             currentStopId = id;
             document.getElementById('currentStopLabel').innerText = label;
@@ -80,19 +85,16 @@
             loadData();
         };
 
-        // Firebaseからリアルタイム読み込み
         function loadData() {
             const busRef = ref(db, `timetables/${currentStopId}`);
+            // Firebase側でデータが変わった時だけここが走る
             onValue(busRef, (snapshot) => {
                 const data = snapshot.val();
                 if (data) {
                     allBusData = Object.values(data).sort((a, b) => a.time.localeCompare(b.time));
                     render(allBusData);
-
-                    // 1分ごとに自動で再描画する（リロードなしで古いバスを消す）
-                    if (window.refreshInterval) clearInterval(window.refreshInterval);
-                    window.refreshInterval = setInterval(() => render(allBusData), 60000);
                 } else {
+                    allBusData = [];
                     document.getElementById('nextBusContainer').innerHTML = '<p class="py-10 text-slate-600">時刻データがありません</p>';
                 }
             });
@@ -101,16 +103,21 @@
         function render(data) {
             const now = new Date();
             const currentTimeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+            
+            // ここで「現在の時刻と同じか、それ以降」のバスだけを表示
             const upcoming = data.filter(bus => bus.time >= currentTimeStr).slice(0, 3);
             
             const container = document.getElementById('nextBusContainer');
+            
+            // 画面がチラつかないように、中身が変わる時だけ書き換える工夫
+            let newHtml = '';
             if (upcoming.length === 0) {
-                container.innerHTML = '<p class="py-10 text-slate-600 border border-dashed border-slate-800 rounded-3xl">本日の運行は終了しました</p>';
+                newHtml = '<p class="py-10 text-slate-600 border border-dashed border-slate-800 rounded-3xl">本日の運行は終了しました</p>';
             } else {
-                container.innerHTML = upcoming.map((bus, i) => {
+                newHtml = upcoming.map((bus, i) => {
                     const isFirst = i === 0;
                     return `
-                    <div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-6 rounded-[2rem] text-left">
+                    <div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-6 rounded-[2rem] text-left mb-4">
                         <div class="flex justify-between items-center">
                             <div>
                                 <div class="flex items-center gap-2 mb-1">
@@ -124,6 +131,24 @@
                     </div>`;
                 }).join('');
             }
+
+            // 現在表示されているものと違う場合のみ更新（チラつき防止）
+            if (container.innerHTML !== newHtml) {
+                container.innerHTML = newHtml;
+            }
+
+            // 全一覧の更新
+            const fullListHtml = data.map(bus => `
+                <div class="flex justify-between py-3 border-b border-slate-800/50 ${bus.time < currentTimeStr ? 'opacity-20' : ''}">
+                    <span class="text-sm font-bold"><span class="text-yellow-500 mr-2">${bus.lineNum}</span>${bus.destination}</span>
+                    <span class="digital-font text-lg">${bus.time}</span>
+                </div>`).join('');
+            
+            const fullListContent = document.getElementById('fullListContent');
+            if (fullListContent.innerHTML !== fullListHtml) {
+                fullListContent.innerHTML = fullListHtml;
+            }
+        }
 
             document.getElementById('fullListContent').innerHTML = data.map(bus => `
                 <div class="flex justify-between py-3 border-b border-slate-800/50 ${bus.time < currentTimeStr ? 'opacity-20' : ''}">
