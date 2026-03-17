@@ -63,7 +63,7 @@
         const db = getDatabase(app);
 
         let currentStopId = 'stop1';
-        let unsubscribe = null; // 前の監視を解除するための変数
+        let allBusData = []; // データを保持
 
         // 時計
         setInterval(() => {
@@ -75,32 +75,33 @@
         window.switchStop = (id, label) => {
             currentStopId = id;
             document.getElementById('currentStopLabel').innerText = label;
-            document.getElementById('btn-stop1').className = id === 'stop1' ? 'active-tab flex-1 py-2.5 text-xs font-bold rounded-lg' : 'flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg';
-            document.getElementById('btn-stop2').className = id === 'stop2' ? 'active-tab flex-1 py-2.5 text-xs font-bold rounded-lg' : 'flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg';
+            document.getElementById('btn-stop1').className = id === 'stop1' ? 'active-tab flex-1 py-2.5 text-xs font-bold rounded-lg transition-all' : 'flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg transition-all';
+            document.getElementById('btn-stop2').className = id === 'stop2' ? 'active-tab flex-1 py-2.5 text-xs font-bold rounded-lg transition-all' : 'flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg transition-all';
             loadData();
         };
 
         // Firebaseからリアルタイム読み込み
         function loadData() {
             const busRef = ref(db, `timetables/${currentStopId}`);
-            
-            // すでに監視中なら一度止める（重複防止）
             onValue(busRef, (snapshot) => {
                 const data = snapshot.val();
                 if (data) {
-                    // Firebaseのデータ（オブジェクト形式か配列形式）を配列に変換してソート
-                    const allBusData = Object.values(data).sort((a, b) => a.time.localeCompare(b.time));
+                    allBusData = Object.values(data).sort((a, b) => a.time.localeCompare(b.time));
                     render(allBusData);
+
+                    // 1分ごとに自動で再描画する（リロードなしで古いバスを消す）
+                    if (window.refreshInterval) clearInterval(window.refreshInterval);
+                    window.refreshInterval = setInterval(() => render(allBusData), 60000);
                 } else {
                     document.getElementById('nextBusContainer').innerHTML = '<p class="py-10 text-slate-600">時刻データがありません</p>';
                 }
             });
         }
 
-        function render(allBusData) {
+        function render(data) {
             const now = new Date();
             const currentTimeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
-            const upcoming = allBusData.filter(bus => bus.time >= currentTimeStr).slice(0, 3);
+            const upcoming = data.filter(bus => bus.time >= currentTimeStr).slice(0, 3);
             
             const container = document.getElementById('nextBusContainer');
             if (upcoming.length === 0) {
@@ -124,7 +125,7 @@
                 }).join('');
             }
 
-            document.getElementById('fullListContent').innerHTML = allBusData.map(bus => `
+            document.getElementById('fullListContent').innerHTML = data.map(bus => `
                 <div class="flex justify-between py-3 border-b border-slate-800/50 ${bus.time < currentTimeStr ? 'opacity-20' : ''}">
                     <span class="text-sm font-bold"><span class="text-yellow-500 mr-2">${bus.lineNum}</span>${bus.destination}</span>
                     <span class="digital-font text-lg">${bus.time}</span>
@@ -133,7 +134,7 @@
 
         window.toggleAllList = () => document.getElementById('fullList').classList.toggle('hidden');
         
-        loadData(); // 起動時に読み込み
+        loadData();
     </script>
 </body>
 </html>
