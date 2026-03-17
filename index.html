@@ -33,8 +33,7 @@
     </div>
 
     <div class="max-w-md mx-auto px-4 mt-6">
-        <div id="nextBusContainer" class="space-y-4 text-center">
-            </div>
+        <div id="nextBusContainer" class="space-y-4 text-center"></div>
 
         <button onclick="toggleAllList()" class="w-full mt-8 bg-slate-800/50 border border-slate-700 text-slate-400 py-4 rounded-2xl text-sm font-bold shadow-lg">
             全時刻表を表示
@@ -62,20 +61,19 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-let currentStopId = 'stop1';
+        let currentStopId = 'stop1';
         let allBusData = []; 
 
-        // 【重要】時計の更新と一緒に、30秒ごとに画面の再描画もチェックする
+        // 1秒ごとに時計を更新し、同時に描画（自動削除）も行う
         setInterval(() => {
             const now = new Date();
             const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
             document.getElementById('liveClock').innerText = timeStr;
             
-            // データがあれば再描画（これで時間切れのバスが消える）
             if (allBusData.length > 0) {
                 render(allBusData);
             }
-        }, 1000); // 1秒ごとに時計を更新しつつ、描画も管理
+        }, 1000);
 
         window.switchStop = (id, label) => {
             currentStopId = id;
@@ -87,7 +85,6 @@ let currentStopId = 'stop1';
 
         function loadData() {
             const busRef = ref(db, `timetables/${currentStopId}`);
-            // Firebase側でデータが変わった時だけここが走る
             onValue(busRef, (snapshot) => {
                 const data = snapshot.val();
                 if (data) {
@@ -104,12 +101,10 @@ let currentStopId = 'stop1';
             const now = new Date();
             const currentTimeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
             
-            // ここで「現在の時刻と同じか、それ以降」のバスだけを表示
+            // 現在時刻以降のバスを抽出
             const upcoming = data.filter(bus => bus.time >= currentTimeStr).slice(0, 3);
-            
             const container = document.getElementById('nextBusContainer');
             
-            // 画面がチラつかないように、中身が変わる時だけ書き換える工夫
             let newHtml = '';
             if (upcoming.length === 0) {
                 newHtml = '<p class="py-10 text-slate-600 border border-dashed border-slate-800 rounded-3xl">本日の運行は終了しました</p>';
@@ -117,7 +112,7 @@ let currentStopId = 'stop1';
                 newHtml = upcoming.map((bus, i) => {
                     const isFirst = i === 0;
                     return `
-                    <div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-6 rounded-[2rem] text-left mb-4">
+                    <div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-6 rounded-[2rem] text-left mb-4 shadow-lg">
                         <div class="flex justify-between items-center">
                             <div>
                                 <div class="flex items-center gap-2 mb-1">
@@ -132,7 +127,7 @@ let currentStopId = 'stop1';
                 }).join('');
             }
 
-            // 現在表示されているものと違う場合のみ更新（チラつき防止）
+            // 内容が変わった時だけ更新
             if (container.innerHTML !== newHtml) {
                 container.innerHTML = newHtml;
             }
@@ -148,13 +143,6 @@ let currentStopId = 'stop1';
             if (fullListContent.innerHTML !== fullListHtml) {
                 fullListContent.innerHTML = fullListHtml;
             }
-        }
-
-            document.getElementById('fullListContent').innerHTML = data.map(bus => `
-                <div class="flex justify-between py-3 border-b border-slate-800/50 ${bus.time < currentTimeStr ? 'opacity-20' : ''}">
-                    <span class="text-sm font-bold"><span class="text-yellow-500 mr-2">${bus.lineNum}</span>${bus.destination}</span>
-                    <span class="digital-font text-lg">${bus.time}</span>
-                </div>`).join('');
         }
 
         window.toggleAllList = () => document.getElementById('fullList').classList.toggle('hidden');
