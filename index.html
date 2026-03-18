@@ -11,10 +11,8 @@
         .digital-font { font-family: 'Chakra Petch', sans-serif; }
         .bus-card { transition: all 0.4s ease; animation: slideUp 0.4s ease-out forwards; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
-        
-        /* アクティブ状態のスタイル */
-        .active-day { background-color: #f59e0b; color: #0f172a; font-weight: 900; } /* 曜日：オレンジ */
-        .active-stop { background-color: #2563eb; color: white; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); } /* 場所：ブルー */
+        .active-day { background-color: #f59e0b; color: #0f172a; font-weight: 900; }
+        .active-stop { background-color: #2563eb; color: white; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); }
     </style>
 </head>
 <body class="text-slate-100 min-h-screen pb-10">
@@ -24,14 +22,14 @@
             <div class="flex justify-between items-center mb-4">
                 <div id="liveClock" class="digital-font text-4xl font-bold text-white leading-none">00:00</div>
                 <div class="text-right">
-                    <p id="currentDayLabel" class="text-xs font-black text-yellow-500 tracking-widest uppercase">Weekday</p>
+                    <p id="currentDayLabel" class="text-xs font-black text-yellow-500 tracking-widest uppercase">Checking...</p>
                     <p id="currentStopLabel" class="text-xl font-black tracking-tighter text-white italic leading-tight">善光寺大門</p>
                 </div>
             </div>
             
             <div class="flex bg-slate-900/50 rounded-lg p-1 border border-slate-800 mb-3">
-                <button onclick="switchDay('weekday')" id="btn-weekday" class="active-day flex-1 py-1.5 text-xs rounded-md transition-all">平日ダイヤ</button>
-                <button onclick="switchDay('holiday')" id="btn-holiday" class="flex-1 py-1.5 text-xs text-slate-500 rounded-md transition-all">土日祝ダイヤ</button>
+                <button onclick="switchDay('weekday')" id="btn-weekday" class="flex-1 py-1.5 text-xs rounded-md transition-all text-slate-500">平日ダイヤ</button>
+                <button onclick="switchDay('holiday')" id="btn-holiday" class="flex-1 py-1.5 text-xs rounded-md transition-all text-slate-500">土日祝ダイヤ</button>
             </div>
 
             <div class="flex bg-slate-900 rounded-xl p-1 border border-slate-700">
@@ -47,6 +45,10 @@
         <button onclick="toggleAllList()" class="w-full mt-8 bg-slate-800/50 border border-slate-700 text-slate-400 py-4 rounded-2xl text-sm font-bold shadow-lg">
             全時刻表を表示
         </button>
+
+        <p class="mt-4 text-[10px] text-slate-500 text-center leading-relaxed px-4">
+            ※年末年始やお盆期間などの特別ダイヤについては、<br>各運行会社のホームページをご確認ください。
+        </p>
 
         <div id="fullList" class="hidden mt-6 bg-slate-900/80 rounded-3xl p-6 border border-slate-800 shadow-2xl">
             <div id="fullListContent" class="space-y-4 h-[400px] overflow-y-auto pr-2"></div>
@@ -74,28 +76,52 @@
         let currentDayType = 'weekday'; 
         let allBusData = []; 
 
+        // 1. 今日が平日か休日か判定する関数
+        async function checkTodayType() {
+            const now = new Date();
+            const day = now.getDay(); // 0:日, 6:土
+            if (day === 0 || day === 6) return 'holiday';
+
+            try {
+                const y = now.getFullYear();
+                const m = (now.getMonth() + 1).toString().padStart(2, '0');
+                const d = now.getDate().toString().padStart(2, '0');
+                // 祝日APIを利用
+                const res = await fetch(`https://api.national-holidays.jp/is_holiday?date=${y}-${m}-${d}`);
+                const result = await res.json();
+                return result.is_holiday ? 'holiday' : 'weekday';
+            } catch (e) {
+                return 'weekday'; // 失敗したら平日扱い
+            }
+        }
+
+        // 時計と自動更新
         setInterval(() => {
             const now = new Date();
-            const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
-            document.getElementById('liveClock').innerText = timeStr;
+            document.getElementById('liveClock').innerText = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
             if (allBusData.length > 0) render(allBusData);
         }, 1000);
 
-        // ダイヤ切り替え（平日/休日）
+        // ボタンの見た目更新
+        function updateUI() {
+            document.getElementById('currentDayLabel').innerText = currentDayType === 'weekday' ? 'Weekday' : 'Holiday';
+            document.getElementById('btn-weekday').className = currentDayType === 'weekday' ? 'active-day flex-1 py-1.5 text-xs rounded-md transition-all' : 'flex-1 py-1.5 text-xs text-slate-500 rounded-md transition-all';
+            document.getElementById('btn-holiday').className = currentDayType === 'holiday' ? 'active-day flex-1 py-1.5 text-xs rounded-md transition-all' : 'flex-1 py-1.5 text-xs text-slate-500 rounded-md transition-all';
+            
+            document.getElementById('btn-stop1').className = currentStopId === 'stop1' ? 'active-stop flex-1 py-2.5 text-xs font-bold rounded-lg transition-all' : 'flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg transition-all';
+            document.getElementById('btn-stop2').className = currentStopId === 'stop2' ? 'active-stop flex-1 py-2.5 text-xs font-bold rounded-lg transition-all' : 'flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg transition-all';
+        }
+
         window.switchDay = (type) => {
             currentDayType = type;
-            document.getElementById('currentDayLabel').innerText = type === 'weekday' ? 'Weekday' : 'Holiday';
-            document.getElementById('btn-weekday').className = type === 'weekday' ? 'active-day flex-1 py-1.5 text-xs rounded-md transition-all' : 'flex-1 py-1.5 text-xs text-slate-500 rounded-md transition-all';
-            document.getElementById('btn-holiday').className = type === 'holiday' ? 'active-day flex-1 py-1.5 text-xs rounded-md transition-all' : 'flex-1 py-1.5 text-xs text-slate-500 rounded-md transition-all';
+            updateUI();
             loadData();
         };
 
-        // バス停切り替え
         window.switchStop = (id, label) => {
             currentStopId = id;
             document.getElementById('currentStopLabel').innerText = label;
-            document.getElementById('btn-stop1').className = id === 'stop1' ? 'active-stop flex-1 py-2.5 text-xs font-bold rounded-lg transition-all' : 'flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg transition-all';
-            document.getElementById('btn-stop2').className = id === 'stop2' ? 'active-stop flex-1 py-2.5 text-xs font-bold rounded-lg transition-all' : 'flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg transition-all';
+            updateUI();
             loadData();
         };
 
@@ -108,7 +134,7 @@
                     render(allBusData);
                 } else {
                     allBusData = [];
-                    document.getElementById('nextBusContainer').innerHTML = `<p class="py-10 text-slate-600 border border-dashed border-slate-800 rounded-3xl">${currentDayType === 'holiday' ? '休日' : '平日'}のデータがありません</p>`;
+                    document.getElementById('nextBusContainer').innerHTML = `<p class="py-10 text-slate-600 border border-dashed border-slate-800 rounded-3xl">データが登録されていません</p>`;
                 }
             });
         }
@@ -140,7 +166,6 @@
                     </div>`;
                 }).join('');
             }
-
             if (container.innerHTML !== newHtml) container.innerHTML = newHtml;
 
             const fullListHtml = data.map(bus => `
@@ -148,14 +173,18 @@
                     <span class="text-sm font-bold"><span class="text-yellow-500 mr-2">${bus.lineNum}</span>${bus.destination}</span>
                     <span class="digital-font text-lg">${bus.time}</span>
                 </div>`).join('');
-            
             const fullListContent = document.getElementById('fullListContent');
             if (fullListContent.innerHTML !== fullListHtml) fullListContent.innerHTML = fullListHtml;
         }
 
         window.toggleAllList = () => document.getElementById('fullList').classList.toggle('hidden');
         
-        loadData();
+        // 起動処理
+        (async () => {
+            currentDayType = await checkTodayType();
+            updateUI();
+            loadData();
+        })();
     </script>
 </body>
 </html>
