@@ -11,7 +11,9 @@
         .digital-font { font-family: 'Chakra Petch', sans-serif; }
         .bus-card { transition: all 0.4s ease; animation: slideUp 0.4s ease-out forwards; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        /* アクティブなタブのスタイル */
         .active-tab { background-color: #2563eb; color: white; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); }
+        .active-day { background-color: #f59e0b; color: #0f172a; font-weight: 900; }
     </style>
 </head>
 <body class="text-slate-100 min-h-screen pb-10">
@@ -21,13 +23,19 @@
             <div class="flex justify-between items-center mb-4">
                 <div id="liveClock" class="digital-font text-4xl font-bold text-white leading-none">00:00</div>
                 <div class="text-right">
-                    <p id="currentStopLabel" class="text-lg font-black tracking-tighter text-yellow-400 italic">善光寺大門</p>
+                    <p id="currentStopLabel" class="text-lg font-black tracking-tighter text-yellow-400 italic leading-tight">善光寺大門</p>
+                    <p id="currentDayLabel" class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Weekday</p>
                 </div>
             </div>
             
-            <div class="flex bg-slate-900 rounded-xl p-1 border border-slate-700">
-                <button onclick="switchStop('stop1', '善光寺大門')" id="btn-stop1" class="active-tab flex-1 py-2.5 text-xs font-bold rounded-lg transition-all">善光寺大門</button>
-                <button onclick="switchStop('stop2', '長野駅')" id="btn-stop2" class="flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg transition-all">長野駅</button>
+            <div class="flex bg-slate-900 rounded-xl p-1 border border-slate-700 mb-2">
+                <button onclick="switchStop('stop1', '善光寺大門')" id="btn-stop1" class="active-tab flex-1 py-2 text-xs font-bold rounded-lg transition-all">善光寺大門</button>
+                <button onclick="switchStop('stop2', '長野駅')" id="btn-stop2" class="flex-1 py-2 text-xs font-bold text-slate-500 rounded-lg transition-all">長野駅</button>
+            </div>
+
+            <div class="flex bg-slate-900/50 rounded-lg p-1 border border-slate-800">
+                <button onclick="switchDay('weekday')" id="btn-weekday" class="active-day flex-1 py-1 text-[10px] rounded-md transition-all">平日ダイヤ</button>
+                <button onclick="switchDay('holiday')" id="btn-holiday" class="flex-1 py-1 text-[10px] text-slate-500 rounded-md transition-all">土日祝ダイヤ</button>
             </div>
         </div>
     </div>
@@ -62,28 +70,37 @@
         const db = getDatabase(app);
 
         let currentStopId = 'stop1';
+        let currentDayType = 'weekday'; // 平日か休日か
         let allBusData = []; 
-        
+
         setInterval(() => {
             const now = new Date();
             const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
             document.getElementById('liveClock').innerText = timeStr;
-            
-            if (allBusData.length > 0) {
-                render(allBusData);
-            }
+            if (allBusData.length > 0) render(allBusData);
         }, 1000);
 
+        // バス停切り替え
         window.switchStop = (id, label) => {
             currentStopId = id;
             document.getElementById('currentStopLabel').innerText = label;
-            document.getElementById('btn-stop1').className = id === 'stop1' ? 'active-tab flex-1 py-2.5 text-xs font-bold rounded-lg transition-all' : 'flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg transition-all';
-            document.getElementById('btn-stop2').className = id === 'stop2' ? 'active-tab flex-1 py-2.5 text-xs font-bold rounded-lg transition-all' : 'flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg transition-all';
+            document.getElementById('btn-stop1').className = id === 'stop1' ? 'active-tab flex-1 py-2 text-xs font-bold rounded-lg transition-all' : 'flex-1 py-2 text-xs font-bold text-slate-500 rounded-lg transition-all';
+            document.getElementById('btn-stop2').className = id === 'stop2' ? 'active-tab flex-1 py-2 text-xs font-bold rounded-lg transition-all' : 'flex-1 py-2 text-xs font-bold text-slate-500 rounded-lg transition-all';
+            loadData();
+        };
+
+        // ダイヤ切り替え（平日/休日）
+        window.switchDay = (type) => {
+            currentDayType = type;
+            document.getElementById('currentDayLabel').innerText = type === 'weekday' ? 'Weekday' : 'Holiday';
+            document.getElementById('btn-weekday').className = type === 'weekday' ? 'active-day flex-1 py-1 text-[10px] rounded-md transition-all' : 'flex-1 py-1 text-[10px] text-slate-500 rounded-md transition-all';
+            document.getElementById('btn-holiday').className = type === 'holiday' ? 'active-day flex-1 py-1 text-[10px] rounded-md transition-all' : 'flex-1 py-1 text-[10px] text-slate-500 rounded-md transition-all';
             loadData();
         };
 
         function loadData() {
-            const busRef = ref(db, `timetables/${currentStopId}`);
+            // パスを timetables/stop1/weekday のように指定
+            const busRef = ref(db, `timetables/${currentStopId}/${currentDayType}`);
             onValue(busRef, (snapshot) => {
                 const data = snapshot.val();
                 if (data) {
@@ -91,7 +108,7 @@
                     render(allBusData);
                 } else {
                     allBusData = [];
-                    document.getElementById('nextBusContainer').innerHTML = '<p class="py-10 text-slate-600">時刻データがありません</p>';
+                    document.getElementById('nextBusContainer').innerHTML = `<p class="py-10 text-slate-600 border border-dashed border-slate-800 rounded-3xl">${currentDayType === 'holiday' ? '休日' : '平日'}のデータがありません</p>`;
                 }
             });
         }
@@ -99,7 +116,6 @@
         function render(data) {
             const now = new Date();
             const currentTimeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
-            
             const upcoming = data.filter(bus => bus.time >= currentTimeStr).slice(0, 3);
             const container = document.getElementById('nextBusContainer');
             
@@ -125,9 +141,7 @@
                 }).join('');
             }
 
-            if (container.innerHTML !== newHtml) {
-                container.innerHTML = newHtml;
-            }
+            if (container.innerHTML !== newHtml) container.innerHTML = newHtml;
 
             const fullListHtml = data.map(bus => `
                 <div class="flex justify-between py-3 border-b border-slate-800/50 ${bus.time < currentTimeStr ? 'opacity-20' : ''}">
@@ -136,9 +150,7 @@
                 </div>`).join('');
             
             const fullListContent = document.getElementById('fullListContent');
-            if (fullListContent.innerHTML !== fullListHtml) {
-                fullListContent.innerHTML = fullListHtml;
-            }
+            if (fullListContent.innerHTML !== fullListHtml) fullListContent.innerHTML = fullListHtml;
         }
 
         window.toggleAllList = () => document.getElementById('fullList').classList.toggle('hidden');
