@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>慢性閉塞性肺疾患</title>
+    <title>BUS TIME</title>
     <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -151,44 +151,68 @@
             });
         }
 
-        function render(data) {
+function render(data) {
             const now = new Date();
             const currentTimeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
-            const upcoming = data.filter(bus => bus.time >= currentTimeStr).slice(0, 3);
+            
+            const upcoming = data.filter(bus => bus.time >= currentTimeStr).slice(0, 4);
             const container = document.getElementById('nextBusContainer');
             
+            const getOrdinal = (n) => {
+                const s = ["th", "st", "nd", "rd"],
+                      v = n % 100;
+                return n + (s[(v - 20) % 10] || s[v] || s[0]);
+            };
+
             let newHtml = '';
             if (upcoming.length === 0) {
                 newHtml = '<p class="py-10 text-slate-600 border border-dashed border-slate-800 rounded-3xl">本日の運行は終了しました</p>';
             } else {
                 newHtml = upcoming.map((bus, i) => {
                     const isFirst = i === 0;
+                    const ordinalLabel = getOrdinal(i + 1).toUpperCase();
+                    
+                    // 【ここを編集】系統番号（lineNum）で判別
+                    // 例：系統番号が "10" または "急行" の場合に注釈を出す
+                    const isExpress = bus.lineNum === "31快";
+                    
+                    const subNote = isExpress 
+                        ? `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（丹波島橋南まで止まりません）</div>` 
+                        : "";
+
                     return `
-                    <div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-6 rounded-[2rem] text-left mb-4 shadow-lg">
+                    <div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-5 rounded-[1.8rem] text-left mb-3 shadow-lg">
                         <div class="flex justify-between items-center">
                             <div>
                                 <div class="flex items-center gap-2 mb-1">
                                     <span class="${isFirst ? 'bg-white text-blue-600' : 'bg-yellow-500 text-slate-900'} text-[10px] font-black px-1.5 py-0.5 rounded italic leading-none">${bus.lineNum}</span>
-                                    <span class="text-[10px] font-bold opacity-60 uppercase tracking-widest leading-none">${isFirst ? 'Departure' : 'Next'}</span>
+                                    <span class="text-[10px] font-bold opacity-60 uppercase tracking-widest leading-none">${ordinalLabel}</span>
                                 </div>
-                                <h2 class="text-2xl font-black">${bus.destination}</h2>
+                                <h2 class="text-xl font-black leading-tight">${bus.destination}</h2>
+                                ${subNote}
                             </div>
-                            <div class="digital-font text-5xl font-bold ${isFirst ? 'text-white' : 'text-yellow-400'}">${bus.time}</div>
+                            <div class="digital-font text-4xl font-bold ${isFirst ? 'text-white' : 'text-yellow-400'}">${bus.time}</div>
                         </div>
                     </div>`;
                 }).join('');
             }
             if (container.innerHTML !== newHtml) container.innerHTML = newHtml;
 
-            const fullListHtml = data.map(bus => `
+            // 全一覧（フルリスト）
+            const fullListHtml = data.map(bus => {
+                const isExpress = bus.lineNum === "10" || bus.lineNum === "急行";
+                return `
                 <div class="flex justify-between py-3 border-b border-slate-800/50 ${bus.time < currentTimeStr ? 'opacity-20' : ''}">
-                    <span class="text-sm font-bold"><span class="text-yellow-500 mr-2">${bus.lineNum}</span>${bus.destination}</span>
+                    <span class="text-sm font-bold">
+                        <span class="text-yellow-500 mr-2">${bus.lineNum}</span>${bus.destination}
+                        ${isExpress ? '<span class="text-[9px] text-yellow-600/80 ml-1 font-black italic">EXPRESS</span>' : ''}
+                    </span>
                     <span class="digital-font text-lg">${bus.time}</span>
-                </div>`).join('');
+                </div>`;
+            }).join('');
             const fullListContent = document.getElementById('fullListContent');
             if (fullListContent.innerHTML !== fullListHtml) fullListContent.innerHTML = fullListHtml;
         }
-
         window.toggleAllList = () => document.getElementById('fullList').classList.toggle('hidden');
         
         // 起動処理
