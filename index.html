@@ -198,16 +198,19 @@ function render(data) {
             }
             if (container.innerHTML !== newHtml) container.innerHTML = newHtml;
 
-            // 全一覧（フルリスト）
             const fullListHtml = data.map(bus => {
-                const isExpress = bus.lineNum === "10" || bus.lineNum === "急行";
+
+                const isExpress = bus.lineNum === "31快";
+                
                 return `
-                <div class="flex justify-between py-3 border-b border-slate-800/50 ${bus.time < currentTimeStr ? 'opacity-20' : ''}">
-                    <span class="text-sm font-bold">
-                        <span class="text-yellow-500 mr-2">${bus.lineNum}</span>${bus.destination}
-                        ${isExpress ? '<span class="text-[9px] text-yellow-600/80 ml-1 font-black italic">EXPRESS</span>' : ''}
-                    </span>
-                    <span class="digital-font text-lg">${bus.time}</span>
+                <div class="flex flex-col py-3 border-b border-slate-800/50 ${bus.time < currentTimeStr ? 'opacity-20' : ''}">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm font-bold">
+                            <span class="text-yellow-500 mr-2">${bus.lineNum}</span>${bus.destination}
+                        </span>
+                        <span class="digital-font text-lg">${bus.time}</span>
+                    </div>
+                    ${isExpress ? `<div class="text-[9px] text-yellow-600/80 font-bold mt-0.5 ml-7">（丹波島橋南まで止まりません）</div>` : ''}
                 </div>`;
             }).join('');
             const fullListContent = document.getElementById('fullListContent');
