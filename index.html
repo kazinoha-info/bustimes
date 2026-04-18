@@ -9,13 +9,10 @@
         @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=Noto+Sans+JP:wght@400;700;900&display=swap');
         body { font-family: 'Noto Sans JP', sans-serif; background-color: #0f172a; }
         .digital-font { font-family: 'Chakra Petch', sans-serif; }
-        
         .bus-card { transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1); animation: slideUp 0.5s ease-out forwards; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-
         button { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
         button:active { transform: scale(0.95); }
-
         .active-day { background-color: #f59e0b; color: #0f172a; font-weight: 900; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3); }
         .active-stop { background-color: #2563eb; color: white; font-weight: 900; box-shadow: 0 4px 20px rgba(37, 99, 235, 0.5); }
     </style>
@@ -79,27 +76,36 @@
         let currentDayType = 'weekday'; 
         let allBusData = [];
 
-        // 自動判定ロジック：saturday, sunday_holiday, weekday
         async function checkTodayType() {
             const now = new Date();
             const day = now.getDay();
+            let isHoliday = false;
             try {
                 const res = await fetch(`https://api.national-holidays.jp/is_holiday?date=${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')}`);
                 const result = await res.json();
-                if (result.is_holiday) return 'sunday_holiday'; // 祝日は sunday_holiday
+                isHoliday = result.is_holiday;
             } catch (e) {}
-            if (day === 0) return 'sunday_holiday'; // 日曜
-            if (day === 6) return 'saturday';       // 土曜
-            return 'weekday';                        // 平日
+
+            // ルートによって判定ロジックを分ける
+            if (currentRoute === 'to_zenkoji') {
+                if (isHoliday || day === 0) return 'sunday_holiday';
+                if (day === 6) return 'saturday';
+                return 'weekday';
+            } else {
+                // to_station は今まで通り 平日(weekday) or 休日(holiday)
+                return (isHoliday || day === 0 || day === 6) ? 'holiday' : 'weekday';
+            }
         }
 
-        window.switchRoute = (val) => {
+        window.switchRoute = async (val) => {
             currentRoute = val;
             if (val === 'to_station') {
                 document.getElementById('btn-stop1').innerText = "善光寺大門";
             } else {
                 document.getElementById('btn-stop1').innerText = "丹波島橋南";
             }
+            // ルートを切り替えた時に、そのルート用の今日の日付タイプを再取得
+            currentDayType = await checkTodayType();
             updateUI();
             loadData();
         };
@@ -118,16 +124,18 @@
         };
 
         function updateUI() {
-            // 表示ラベル（sunday_holiday は長いので SUNDAY/HOL とかで見栄え調整可）
-            const labelMap = { 'weekday': 'WEEKDAY', 'saturday': 'SATURDAY', 'sunday_holiday': 'SUN/HOL' };
-            document.getElementById('currentDayLabel').innerText = labelMap[currentDayType];
+            const labelMap = { 'weekday': 'WEEKDAY', 'saturday': 'SATURDAY', 'sunday_holiday': 'SUN/HOL', 'holiday': 'HOLIDAY' };
+            document.getElementById('currentDayLabel').innerText = labelMap[currentDayType] || currentDayType.toUpperCase();
 
             const dayBtnArea = document.getElementById('dayButtonGroup');
-            const btns = [
-                {id:'weekday', n:'平日'}, 
-                {id:'saturday', n:'土曜'}, 
-                {id:'sunday_holiday', n:'日祝'}
-            ];
+            let btns = [];
+            
+            // ルートによって表示するボタンの構成を変える
+            if (currentRoute === 'to_zenkoji') {
+                btns = [{id:'weekday', n:'平日'}, {id:'saturday', n:'土曜'}, {id:'sunday_holiday', n:'日祝'}];
+            } else {
+                btns = [{id:'weekday', n:'平日'}, {id:'holiday', n:'休日'}];
+            }
             
             dayBtnArea.innerHTML = btns.map(b => `
                 <button onclick="switchDay('${b.id}')" 
@@ -172,27 +180,14 @@
                 container.innerHTML = upcoming.map((b, i) => {
                     const isFirst = i === 0;
                     const platBadge = getPlatformBadge(b.lineNum);
-                    const lineStr = String(b.lineNum);
-                    let subNote = "";
-
-                    if (lineStr === "31快") {
-                        subNote = currentRoute === 'to_zenkoji' 
-                            ? `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（長野駅まで止まりません）</div>`
-                            : `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（丹波島橋南まで止まりません）</div>`;
-                    } else if ((lineStr === "10" || lineStr === "79") && currentRoute === 'to_zenkoji') {
-                        subNote = `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（善光寺大門で降りてください）</div>`;
-                    }
-
                     return `
                     <div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-5 rounded-[1.8rem] text-left mb-3 shadow-lg flex justify-between items-center">
                         <div>
                             <div class="flex items-center gap-1 mb-1.5">
                                 ${platBadge}
                                 <span class="${isFirst ? 'bg-white text-blue-600' : 'bg-yellow-500 text-slate-900'} text-[10px] font-black px-1.5 py-0.5 rounded italic leading-none">${b.lineNum}</span>
-                                <span class="text-[10px] font-bold opacity-60 uppercase tracking-widest leading-none ml-1">${["1ST","2ND","3RD","4TH"][i]}</span>
                             </div>
                             <h2 class="text-xl font-black leading-tight">${b.destination}</h2>
-                            ${subNote}
                         </div>
                         <div class="digital-font text-4xl font-bold ${isFirst ? 'text-white' : 'text-yellow-400'} ml-4">${b.time}</div>
                     </div>`;
@@ -200,11 +195,9 @@
             }
 
             document.getElementById('fullListContent').innerHTML = data.map(b => {
-                const platBadge = getPlatformBadge(b.lineNum);
                 return `
                 <div class="flex justify-between items-center py-3 border-b border-slate-800/50 ${b.time < timeStr ? 'opacity-20' : ''}">
                     <span class="text-sm font-bold flex items-center gap-1">
-                        ${platBadge}
                         <span class="text-yellow-500">${b.lineNum}</span>
                         <span>${b.destination}</span>
                     </span>
