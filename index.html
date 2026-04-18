@@ -174,6 +174,22 @@ function render(data) {
                 container.innerHTML = '<p class="py-10 text-slate-600 border border-dashed border-slate-800 rounded-3xl">運行終了</p>';
             } else {
                 container.innerHTML = upcoming.map((b, i) => {
+                    // 180行目付近：upcoming.map((bus, i) => { の直後に追加
+const isFirst = i === 0;
+const ordinalLabel = getOrdinal(i + 1).toUpperCase();
+
+// --- ここから追加 ---
+let platform = "";
+const line = bus.lineNum;
+
+if (["10", "臨10", "11", "16", "17"].includes(line)) {
+    platform = "①";
+} else if (line.startsWith("3")) {
+    platform = "③";
+} else if (line.startsWith("7")) {
+    platform = "⑦";
+}
+// --- ここまで追加 ---
                     const isExp = b.lineNum === "31快";
                     const ord = ["1ST","2ND","3RD","4TH"][i];
 
@@ -191,8 +207,11 @@ function render(data) {
                     // ------------------------------
 
                     return `
-                    <div class="bus-card ${i===0?'bg-blue-600':'bg-slate-800'} p-5 rounded-[1.8rem] text-left mb-3 shadow-lg">
-                        <div class="flex justify-between items-center">
+<div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-5 rounded-[1.8rem] text-left mb-3 shadow-lg relative overflow-hidden">
+    
+    ${platform ? `<div class="absolute top-4 right-4 bg-white/20 backdrop-blur-md px-2 py-1 rounded-md text-[10px] font-black text-white border border-white/30">長野駅${platform}</div>` : ''}
+
+    <div class="flex justify-between items-center">
                             <div>
                                 <div class="flex items-center gap-2 mb-1">
                                     <span class="${i===0?'bg-white text-blue-600':'bg-yellow-500 text-slate-900'} text-[10px] font-black px-1.5 py-0.5 rounded italic leading-none">${b.lineNum}</span>
@@ -210,6 +229,21 @@ function render(data) {
             // 下のフルリスト側にも同じメッセージを出す場合
             document.getElementById('fullListContent').innerHTML = data.map(b => {
                 const isExp = b.lineNum === "31快";
+                let pSmall = ""; 
+if (["10", "臨10", "11", "16", "17"].includes(bus.lineNum)) pSmall = "①";
+else if (bus.lineNum.startsWith("3")) pSmall = "③";
+else if (bus.lineNum.startsWith("7")) pSmall = "⑦";
+
+return `
+<div class="flex flex-col py-3 border-b border-slate-800/50 ${bus.time < currentTimeStr ? 'opacity-20' : ''}">
+    <div class="flex justify-between items-center">
+        <span class="text-sm font-bold">
+            <span class="text-yellow-500 mr-2">${bus.lineNum}</span>
+            ${bus.destination}
+            ${pSmall ? `<span class="ml-2 text-[9px] opacity-60 bg-slate-700 px-1 rounded">長野駅${pSmall}</span>` : ''}
+        </span>
+        <span class="digital-font text-lg">${bus.time}</span>
+    </div>
                 let listNote = "";
                 if (isExp) {
                     listNote = currentRoute === 'to_zenkoji' 
