@@ -1,3 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BUS TIME</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icon.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=Noto+Sans+JP:wght@400;700;900&display=swap');
+        body { font-family: 'Noto Sans JP', sans-serif; background-color: #0f172a; }
+        .digital-font { font-family: 'Chakra Petch', sans-serif; }
+        .bus-card { transition: all 0.4s ease; animation: slideUp 0.4s ease-out forwards; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        .active-day { background-color: #f59e0b; color: #0f172a; font-weight: 900; }
+        .active-stop { background-color: #2563eb; color: white; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen pb-10">
+
+    <div class="sticky top-0 z-50 bg-[#0f172a]/95 backdrop-blur-md border-b border-slate-800 shadow-xl">
+        <div class="max-w-md mx-auto px-6 pt-5 pb-3">
+            <div class="flex justify-between items-center mb-4">
+                <div id="liveClock" class="digital-font text-4xl font-bold text-white leading-none">00:00</div>
+                <div class="text-right">
+                    <p id="currentDayLabel" class="text-xs font-black text-yellow-500 tracking-widest uppercase italic">Checking...</p>
+                    <p id="currentStopLabel" class="text-xl font-black tracking-tighter text-white italic leading-tight">善光寺大門</p>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <select id="routeSelect" onchange="switchRoute(this.value)" class="w-full bg-slate-800 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                    <option value="to_station">善光寺 ➔ 丹波島橋南 方面</option>
+                    <option value="to_zenkoji">丹波島橋南 ➔ 善光寺 方面</option>
+                </select>
+            </div>
+            
+            <div id="dayButtonGroup" class="flex bg-slate-900/50 rounded-lg p-1 border border-slate-800 mb-3"></div>
+
+            <div class="flex bg-slate-900 rounded-xl p-1 border border-slate-700">
+                <button onclick="switchStop('stop1')" id="btn-stop1" class="active-stop flex-1 py-2.5 text-xs font-bold rounded-lg transition-all"><span id="s1Name">善光寺大門</span></button>
+                <button onclick="switchStop('stop2')" id="btn-stop2" class="flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg transition-all"><span id="s2Name">長野駅</span></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-md mx-auto px-4 mt-6">
+        <div id="nextBusContainer" class="space-y-4 text-center"></div>
+
+        <button onclick="toggleAllList()" class="w-full mt-8 bg-slate-800/50 border border-slate-700 text-slate-400 py-4 rounded-2xl text-sm font-bold shadow-lg">全時刻表を表示</button>
+
+        <div id="fullList" class="hidden mt-6 bg-slate-900/80 rounded-3xl p-6 border border-slate-800 shadow-2xl">
+            <div id="fullListContent" class="space-y-4 h-[400px] overflow-y-auto pr-2"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCWcJ5BioNRhqVF7o6GfQJ8ui9OZSWD33M",
+            authDomain: "bus-timetable-2d2a1.firebaseapp.com",
+            databaseURL: "https://bus-timetable-2d2a1-default-rtdb.firebaseio.com/",
+            projectId: "bus-timetable-2d2a1",
+            storageBucket: "bus-timetable-2d2a1.firebasestorage.app",
+            messagingSenderId: "G-LJCQFRZT8H",
+            appId: "1:786927724439:web:ceee42521343fde00306d2"
+        };
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        let currentRoute = 'to_station';
+        let currentStopId = 'stop1';
+        let currentDayType = 'weekday'; 
+        let allBusData = [];
+
+        async function checkTodayType(route) {
+            const now = new Date();
+            const day = now.getDay();
+            let isHol = false;
+            try {
+                const res = await fetch(`https://api.national-holidays.jp/is_holiday?date=${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')}`);
+                const result = await res.json();
+                isHol = result.is_holiday;
+            } catch (e) {}
+
+            if (route === 'to_zenkoji') {
+                if (isHol || day === 0) return 'sunday_holiday';
+                if (day === 6) return 'saturday';
+                return 'weekday';
+            } else {
+                return (isHol || day === 0 || day === 6) ? 'holiday' : 'weekday';
+            }
+        }
+
+        window.switchRoute = async (val) => {
+            currentRoute = val;
+            const s1 = document.getElementById('s1Name');
+            const s2 = document.getElementById('s2Name');
+            if (val === 'to_station') {
+                s1.innerText = "善光寺大門"; s2.innerText = "長野駅";
+            } else {
+                s1.innerText = "丹波島橋南"; s2.innerText = "長野駅";
+            }
+            currentDayType = await checkTodayType(val);
+            updateUI();
+            loadData();
+        };
+
+        window.switchDay = (type) => {
+            currentDayType = type;
+            updateUI();
+            loadData();
+        };
+
+        window.switchStop = (id) => {
+            currentStopId = id;
+            updateUI();
+            loadData();
+        };
+
+        function updateUI() {
+            const activeName = document.getElementById(currentStopId === 'stop1' ? 's1Name' : 's2Name').innerText;
+            document.getElementById('currentStopLabel').innerText = activeName;
+            const dayBtnArea = document.getElementById('dayButtonGroup');
+            let btns = [];
+            if (currentRoute === 'to_station') {
+                btns = [{id:'weekday', n:'平日'}, {id:'holiday', n:'休日'}];
+            } else {
+                btns = [{id:'weekday', n:'平日'}, {id:'saturday', n:'土曜'}, {id:'sunday_holiday', n:'日祝'}];
+            }
+            dayBtnArea.innerHTML = btns.map(b => `
+                <button onclick="switchDay('${b.id}')" id="btn-${b.id}" 
+                class="flex-1 py-1.5 text-[10px] rounded-md transition-all font-bold ${currentDayType === b.id ? 'active-day' : 'text-slate-500'}">
+                ${b.n}</button>`).join('');
+
+            document.getElementById('btn-stop1').className = (currentStopId === 'stop1' ? 'active-stop' : 'text-slate-500') + ' flex-1 py-2.5 text-xs font-bold rounded-lg transition-all';
+            document.getElementById('btn-stop2').className = (currentStopId === 'stop2' ? 'active-stop' : 'text-slate-500') + ' flex-1 py-2.5 text-xs font-bold rounded-lg transition-all';
+            document.getElementById('currentDayLabel').innerText = currentDayType.replace('_', ' ').toUpperCase();
+        }
+
+        function loadData() {
+            const path = `timetables/${currentRoute}/${currentStopId}/${currentDayType}`;
+            onValue(ref(db, path), (snapshot) => {
+                const data = snapshot.val();
+                allBusData = data ? Object.values(data).sort((a, b) => a.time.localeCompare(b.time)) : [];
+                render(allBusData);
+            });
+        }
+
+        // 乗り場判定用関数（どこからでも呼べるように外に出しました）
+        function getPlatformNumber(line) {
+            if (!line) return "";
+            const lineStr = String(line); // 文字列として扱う
+            if (["10", "臨10", "11", "16", "17"].includes(lineStr)) return "①";
+            if (lineStr.startsWith("3")) return "③";
+            if (lineStr.startsWith("7")) return "⑦";
+            return "";
+        }
+
 function render(data) {
             const now = new Date();
             const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
@@ -80,3 +246,19 @@ function render(data) {
                 </div>`;
             }).join('');
         }
+
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('liveClock').innerText = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+        }, 1000);
+
+        window.toggleAllList = () => document.getElementById('fullList').classList.toggle('hidden');
+
+        (async () => {
+            currentDayType = await checkTodayType(currentRoute);
+            updateUI();
+            loadData();
+        })();
+    </script>
+</body>
+</html>
