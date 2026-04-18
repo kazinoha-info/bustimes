@@ -157,7 +157,7 @@
             });
         }
 
-        function render(data) {
+function render(data) {
             const now = new Date();
             const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
             const upcoming = data.filter(b => b.time >= timeStr).slice(0, 4);
@@ -180,26 +180,51 @@
                 container.innerHTML = upcoming.map((b, i) => {
                     const isFirst = i === 0;
                     const platBadge = getPlatformBadge(b.lineNum);
+                    const lineStr = String(b.lineNum);
+                    
+                    // ★ 警告表示（subNote）の復活
+                    let subNote = "";
+                    if (lineStr === "31快") {
+                        subNote = currentRoute === 'to_zenkoji' 
+                            ? `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（長野駅まで止まりません）</div>`
+                            : `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（丹波島橋南まで止まりません）</div>`;
+                    } else if ((lineStr === "10" || lineStr === "79") && currentRoute === 'to_zenkoji') {
+                        subNote = `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（善光寺大門で降りてください）</div>`;
+                    }
+
                     return `
                     <div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-5 rounded-[1.8rem] text-left mb-3 shadow-lg flex justify-between items-center">
                         <div>
                             <div class="flex items-center gap-1 mb-1.5">
                                 ${platBadge}
                                 <span class="${isFirst ? 'bg-white text-blue-600' : 'bg-yellow-500 text-slate-900'} text-[10px] font-black px-1.5 py-0.5 rounded italic leading-none">${b.lineNum}</span>
+                                <span class="text-[10px] font-bold opacity-60 uppercase tracking-widest leading-none ml-1">${["1ST","2ND","3RD","4TH"][i]}</span>
                             </div>
                             <h2 class="text-xl font-black leading-tight">${b.destination}</h2>
-                        </div>
+                            ${subNote} </div>
                         <div class="digital-font text-4xl font-bold ${isFirst ? 'text-white' : 'text-yellow-400'} ml-4">${b.time}</div>
                     </div>`;
                 }).join('');
             }
 
+            // 全時刻表リストの方にも簡易表示を追加
             document.getElementById('fullListContent').innerHTML = data.map(b => {
+                const platBadge = getPlatformBadge(b.lineNum);
+                const lineStr = String(b.lineNum);
+                let listNote = "";
+                if (lineStr === "31快") {
+                    listNote = currentRoute === 'to_zenkoji' ? '（長野駅通過）' : '（丹波島橋南通過）';
+                } else if ((lineStr === "10" || lineStr === "79") && currentRoute === 'to_zenkoji') {
+                    listNote = '（善光寺大門止まり）';
+                }
+                
                 return `
                 <div class="flex justify-between items-center py-3 border-b border-slate-800/50 ${b.time < timeStr ? 'opacity-20' : ''}">
                     <span class="text-sm font-bold flex items-center gap-1">
+                        ${platBadge}
                         <span class="text-yellow-500">${b.lineNum}</span>
                         <span>${b.destination}</span>
+                        <span class="text-[9px] text-slate-500 ml-1">${listNote}</span>
                     </span>
                     <span class="digital-font text-lg">${b.time}</span>
                 </div>`;
