@@ -4,45 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BUS TIME</title>
-    <link rel="manifest" href="manifest.json">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="icon.png">
-
     <script src="https://cdn.tailwindcss.com"></script>
-   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=Noto+Sans+JP:wght@400;700;900&display=swap');
-    body { font-family: 'Noto Sans JP', sans-serif; background-color: #0f172a; }
-    .digital-font { font-family: 'Chakra Petch', sans-serif; }
-    
-    /* カードのアニメーション */
-    .bus-card { transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1); animation: slideUp 0.5s ease-out forwards; }
-    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=Noto+Sans+JP:wght@400;700;900&display=swap');
+        body { font-family: 'Noto Sans JP', sans-serif; background-color: #0f172a; }
+        .digital-font { font-family: 'Chakra Petch', sans-serif; }
+        
+        .bus-card { transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1); animation: slideUp 0.5s ease-out forwards; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
-    /* ★ボタンの共通設定：ここを強化 */
-    button { 
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
-        position: relative;
-        overflow: hidden;
-    }
-    button:active { transform: scale(0.95); } /* 押した時に少し小さくなる */
+        button { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
+        button:active { transform: scale(0.95); }
 
-    /* 平日・休日ボタンのアクティブ色 */
-    .active-day { 
-        background-color: #f59e0b; 
-        color: #0f172a; 
-        font-weight: 900;
-        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-    }
-
-    /* バス停ボタンのアクティブ色 */
-    .active-stop { 
-        background-color: #2563eb; 
-        color: white; 
-        font-weight: 900;
-        box-shadow: 0 4px 20px rgba(37, 99, 235, 0.5); 
-    }
-</style>
+        .active-day { background-color: #f59e0b; color: #0f172a; font-weight: 900; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3); }
+        .active-stop { background-color: #2563eb; color: white; font-weight: 900; box-shadow: 0 4px 20px rgba(37, 99, 235, 0.5); }
+    </style>
 </head>
 <body class="text-slate-100 min-h-screen pb-10">
 
@@ -63,11 +39,11 @@
                 </select>
             </div>
             
-            <div id="dayButtonGroup" class="flex bg-slate-900/50 rounded-lg p-1 border border-slate-800 mb-3">
+            <div id="dayButtonGroup" class="flex bg-slate-900/50 rounded-lg p-1 border border-slate-800 mb-3 gap-1">
                 </div>
 
             <div class="flex bg-slate-900 rounded-xl p-1 border border-slate-700">
-                <button onclick="switchStop('stop1')" id="btn-stop1" class="active-stop flex-1 py-2.5 text-xs font-bold rounded-lg transition-all">善光寺大門</button>
+                <button onclick="switchStop('stop1')" id="btn-stop1" class="flex-1 py-2.5 text-xs font-bold rounded-lg transition-all">善光寺大門</button>
                 <button onclick="switchStop('stop2')" id="btn-stop2" class="flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg transition-all">長野駅</button>
             </div>
         </div>
@@ -75,10 +51,8 @@
 
     <div class="max-w-md mx-auto px-4 mt-6">
         <div id="nextBusContainer" class="space-y-4 text-center"></div>
-
-        <button onclick="toggleAllList()" class="w-full mt-8 bg-slate-800/50 border border-slate-700 text-slate-400 py-4 rounded-2xl text-sm font-bold shadow-lg">全時刻表を表示</button>
-
-        <div id="fullList" class="hidden mt-6 bg-slate-900/80 rounded-3xl p-6 border border-slate-800 shadow-2xl">
+        <button onclick="toggleAllList()" class="w-full mt-8 bg-slate-800/50 border border-slate-700 text-slate-400 py-4 rounded-2xl text-sm font-bold">全時刻表を表示</button>
+        <div id="fullList" class="hidden mt-6 bg-slate-900/80 rounded-3xl p-6 border border-slate-800">
             <div id="fullListContent" class="space-y-4 h-[400px] overflow-y-auto pr-2"></div>
         </div>
     </div>
@@ -105,15 +79,18 @@
         let currentDayType = 'weekday'; 
         let allBusData = [];
 
+        // 自動判定ロジック：saturday, sunday_holiday, weekday
         async function checkTodayType() {
             const now = new Date();
             const day = now.getDay();
-            if (day === 0 || day === 6) return 'holiday';
             try {
                 const res = await fetch(`https://api.national-holidays.jp/is_holiday?date=${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')}`);
                 const result = await res.json();
-                return result.is_holiday ? 'holiday' : 'weekday';
-            } catch (e) { return 'weekday'; }
+                if (result.is_holiday) return 'sunday_holiday'; // 祝日は sunday_holiday
+            } catch (e) {}
+            if (day === 0) return 'sunday_holiday'; // 日曜
+            if (day === 6) return 'saturday';       // 土曜
+            return 'weekday';                        // 平日
         }
 
         window.switchRoute = (val) => {
@@ -135,38 +112,34 @@
 
         window.switchStop = (id) => {
             currentStopId = id;
-            const label = document.getElementById(`btn-${id}`).innerText;
-            document.getElementById('currentStopLabel').innerText = label;
+            document.getElementById('currentStopLabel').innerText = document.getElementById(`btn-${id}`).innerText;
             updateUI();
             loadData();
         };
 
-function updateUI() {
-    document.getElementById('currentDayLabel').innerText = currentDayType.toUpperCase();
-    const dayBtnArea = document.getElementById('dayButtonGroup');
-    const btns = [{id:'weekday', n:'平日'}, {id:'holiday', n:'休日'}];
-    
-    // 平日・休日ボタンの生成とアニメーションクラス適用
-    dayBtnArea.innerHTML = btns.map(b => {
-        const isActive = currentDayType === b.id;
-        return `
-            <button onclick="switchDay('${b.id}')" 
-            class="flex-1 py-2 text-xs rounded-md font-bold ${isActive ? 'active-day' : 'text-slate-500 hover:text-slate-300'}">
-            ${b.n}</button>`;
-    }).join('');
+        function updateUI() {
+            // 表示ラベル（sunday_holiday は長いので SUNDAY/HOL とかで見栄え調整可）
+            const labelMap = { 'weekday': 'WEEKDAY', 'saturday': 'SATURDAY', 'sunday_holiday': 'SUN/HOL' };
+            document.getElementById('currentDayLabel').innerText = labelMap[currentDayType];
 
-    // バス停ボタンのアニメーションクラス適用
-    const btnStop1 = document.getElementById('btn-stop1');
-    const btnStop2 = document.getElementById('btn-stop2');
+            const dayBtnArea = document.getElementById('dayButtonGroup');
+            const btns = [
+                {id:'weekday', n:'平日'}, 
+                {id:'saturday', n:'土曜'}, 
+                {id:'sunday_holiday', n:'日祝'}
+            ];
+            
+            dayBtnArea.innerHTML = btns.map(b => `
+                <button onclick="switchDay('${b.id}')" 
+                class="flex-1 py-2 text-xs rounded-md font-bold ${currentDayType === b.id ? 'active-day' : 'text-slate-500'}">
+                ${b.n}</button>`).join('');
 
-    if (currentStopId === 'stop1') {
-        btnStop1.className = 'active-stop flex-1 py-3 text-xs rounded-lg transition-all';
-        btnStop2.className = 'text-slate-500 hover:text-slate-300 flex-1 py-3 text-xs font-bold rounded-lg transition-all';
-    } else {
-        btnStop1.className = 'text-slate-500 hover:text-slate-300 flex-1 py-3 text-xs font-bold rounded-lg transition-all';
-        btnStop2.className = 'active-stop flex-1 py-3 text-xs rounded-lg transition-all';
-    }
-}
+            const btnStop1 = document.getElementById('btn-stop1');
+            const btnStop2 = document.getElementById('btn-stop2');
+            btnStop1.className = (currentStopId === 'stop1' ? 'active-stop' : 'text-slate-500') + ' flex-1 py-3 text-xs font-bold rounded-lg transition-all';
+            btnStop2.className = (currentStopId === 'stop2' ? 'active-stop' : 'text-slate-500') + ' flex-1 py-3 text-xs font-bold rounded-lg transition-all';
+        }
+
         function loadData() {
             const path = `timetables/${currentRoute}/${currentStopId}/${currentDayType}`;
             onValue(ref(db, path), (snapshot) => {
@@ -190,7 +163,7 @@ function updateUI() {
                 if (["10", "臨10", "11", "16", "17"].includes(lineStr)) num = "①";
                 else if (lineStr.startsWith("3")) num = "③";
                 else if (lineStr.startsWith("7")) num = "⑦";
-                return num ? `<span class="bg-white text-slate-900 text-[10px] font-black px-1.5 py-0.5 rounded shadow-sm border border-slate-300">長野駅${num}</span>` : "";
+                return num ? `<span class="bg-white text-slate-900 text-[10px] font-black px-1.5 py-0.5 rounded shadow-sm border border-slate-300 mr-1">長野駅${num}</span>` : "";
             };
 
             if (upcoming.length === 0) {
@@ -211,45 +184,31 @@ function updateUI() {
                     }
 
                     return `
-                    <div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-5 rounded-[1.8rem] text-left mb-3 shadow-lg relative">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <div class="flex items-center gap-2 mb-1.5">
-                                    ${platBadge}
-                                    <span class="${isFirst ? 'bg-white text-blue-600' : 'bg-yellow-500 text-slate-900'} text-[10px] font-black px-1.5 py-0.5 rounded italic leading-none">${b.lineNum}</span>
-                                    <span class="text-[10px] font-bold opacity-60 uppercase tracking-widest leading-none">${["1ST","2ND","3RD","4TH"][i]}</span>
-                                </div>
-                                <h2 class="text-xl font-black leading-tight">${b.destination}</h2>
-                                ${subNote}
+                    <div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-5 rounded-[1.8rem] text-left mb-3 shadow-lg flex justify-between items-center">
+                        <div>
+                            <div class="flex items-center gap-1 mb-1.5">
+                                ${platBadge}
+                                <span class="${isFirst ? 'bg-white text-blue-600' : 'bg-yellow-500 text-slate-900'} text-[10px] font-black px-1.5 py-0.5 rounded italic leading-none">${b.lineNum}</span>
+                                <span class="text-[10px] font-bold opacity-60 uppercase tracking-widest leading-none ml-1">${["1ST","2ND","3RD","4TH"][i]}</span>
                             </div>
-                            <div class="digital-font text-4xl font-bold ${isFirst ? 'text-white' : 'text-yellow-400'} ml-4">${b.time}</div>
+                            <h2 class="text-xl font-black leading-tight">${b.destination}</h2>
+                            ${subNote}
                         </div>
+                        <div class="digital-font text-4xl font-bold ${isFirst ? 'text-white' : 'text-yellow-400'} ml-4">${b.time}</div>
                     </div>`;
                 }).join('');
             }
 
             document.getElementById('fullListContent').innerHTML = data.map(b => {
                 const platBadge = getPlatformBadge(b.lineNum);
-                const lineStr = String(b.lineNum);
-                let listNote = "";
-                if (lineStr === "31快") {
-                    listNote = currentRoute === 'to_zenkoji' 
-                        ? '<div class="text-[9px] text-yellow-600/80 font-bold mt-0.5 ml-7">（長野駅まで止まりません）</div>'
-                        : '<div class="text-[9px] text-yellow-600/80 font-bold mt-0.5 ml-7">（丹波島橋南まで止まりません）</div>';
-                } else if ((lineStr === "10" || lineStr === "79") && currentRoute === 'to_zenkoji') {
-                    listNote = '<div class="text-[9px] text-yellow-600/80 font-bold mt-0.5 ml-7">（善光寺大門で降りてください）</div>';
-                }
                 return `
-                <div class="flex flex-col py-3 border-b border-slate-800/50 ${b.time < timeStr ? 'opacity-20' : ''}">
-                    <div class="flex justify-between items-center">
-                        <span class="text-sm font-bold flex items-center gap-2">
-                            ${platBadge}
-                            <span class="text-yellow-500">${b.lineNum}</span>
-                            <span>${b.destination}</span>
-                        </span>
-                        <span class="digital-font text-lg">${b.time}</span>
-                    </div>
-                    ${listNote}
+                <div class="flex justify-between items-center py-3 border-b border-slate-800/50 ${b.time < timeStr ? 'opacity-20' : ''}">
+                    <span class="text-sm font-bold flex items-center gap-1">
+                        ${platBadge}
+                        <span class="text-yellow-500">${b.lineNum}</span>
+                        <span>${b.destination}</span>
+                    </span>
+                    <span class="digital-font text-lg">${b.time}</span>
                 </div>`;
             }).join('');
         }
