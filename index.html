@@ -154,28 +154,30 @@
             });
         }
 
+        // 乗り場判定用関数（どこからでも呼べるように外に出しました）
+        function getPlatformNumber(line) {
+            if (!line) return "";
+            const lineStr = String(line); // 文字列として扱う
+            if (["10", "臨10", "11", "16", "17"].includes(lineStr)) return "①";
+            if (lineStr.startsWith("3")) return "③";
+            if (lineStr.startsWith("7")) return "⑦";
+            return "";
+        }
+
         function render(data) {
             const now = new Date();
             const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
             const upcoming = data.filter(b => b.time >= timeStr).slice(0, 4);
             const container = document.getElementById('nextBusContainer');
 
-            // 乗り場判定用関数
-            const getPlatform = (line) => {
-                if (["10", "臨10", "11", "16", "17"].includes(line)) return "①";
-                if (line.startsWith("3")) return "③";
-                if (line.startsWith("7")) return "⑦";
-                return "";
-            };
-
             if (upcoming.length === 0) {
                 container.innerHTML = '<p class="py-10 text-slate-600 border border-dashed border-slate-800 rounded-3xl">運行終了</p>';
             } else {
                 container.innerHTML = upcoming.map((b, i) => {
                     const isFirst = i === 0;
-                    const plat = getPlatform(b.lineNum);
+                    const plat = getPlatformNumber(b.lineNum);
                     const isExp = b.lineNum === "31快";
-                    const ord = ["1ST","2ND","3RD","4TH"][i];
+                    const ords = ["1ST","2ND","3RD","4TH"];
                     
                     let subNote = "";
                     if (isExp) {
@@ -191,7 +193,7 @@
                             <div>
                                 <div class="flex items-center gap-2 mb-1">
                                     <span class="${isFirst ? 'bg-white text-blue-600' : 'bg-yellow-500 text-slate-900'} text-[10px] font-black px-1.5 py-0.5 rounded italic leading-none">${b.lineNum}</span>
-                                    <span class="text-[10px] font-bold opacity-60 uppercase tracking-widest leading-none">${ord}</span>
+                                    <span class="text-[10px] font-bold opacity-60 uppercase tracking-widest leading-none">${ords[i]}</span>
                                 </div>
                                 <h2 class="text-xl font-black leading-tight">${b.destination}</h2>
                                 ${subNote}
@@ -202,8 +204,9 @@
                 }).join('');
             }
 
+            // フルリストの描画
             document.getElementById('fullListContent').innerHTML = data.map(b => {
-                const plat = getPlatform(b.lineNum);
+                const plat = getPlatformNumber(b.lineNum);
                 const isExp = b.lineNum === "31快";
                 let listNote = "";
                 if (isExp) {
