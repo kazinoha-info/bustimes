@@ -5,17 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BUS TIME</title>
     <link rel="manifest" href="manifest.json">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icon.png">
 
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration failed:', err));
-    });
-  }
-</script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=Noto+Sans+JP:wght@400;700;900&display=swap');
@@ -34,19 +27,23 @@
             <div class="flex justify-between items-center mb-4">
                 <div id="liveClock" class="digital-font text-4xl font-bold text-white leading-none">00:00</div>
                 <div class="text-right">
-                    <p id="currentDayLabel" class="text-xs font-black text-yellow-500 tracking-widest uppercase">Checking...</p>
+                    <p id="currentDayLabel" class="text-xs font-black text-yellow-500 tracking-widest uppercase italic">Checking...</p>
                     <p id="currentStopLabel" class="text-xl font-black tracking-tighter text-white italic leading-tight">善光寺大門</p>
                 </div>
             </div>
-            
-            <div class="flex bg-slate-900/50 rounded-lg p-1 border border-slate-800 mb-3">
-                <button onclick="switchDay('weekday')" id="btn-weekday" class="flex-1 py-1.5 text-xs rounded-md transition-all text-slate-500">平日ダイヤ</button>
-                <button onclick="switchDay('holiday')" id="btn-holiday" class="flex-1 py-1.5 text-xs rounded-md transition-all text-slate-500">土日祝ダイヤ</button>
+
+            <div class="mb-3">
+                <select id="routeSelect" onchange="switchRoute(this.value)" class="w-full bg-slate-800 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+                    <option value="to_station">善光寺 ➔ 丹波島橋南 方面</option>
+                    <option value="to_zenkoji">丹波島橋南 ➔ 善光寺 方面</option>
+                </select>
             </div>
+            
+            <div id="dayButtonGroup" class="flex bg-slate-900/50 rounded-lg p-1 border border-slate-800 mb-3"></div>
 
             <div class="flex bg-slate-900 rounded-xl p-1 border border-slate-700">
-                <button onclick="switchStop('stop1', '善光寺大門')" id="btn-stop1" class="active-stop flex-1 py-2.5 text-xs font-bold rounded-lg transition-all">善光寺大門</button>
-                <button onclick="switchStop('stop2', '長野駅')" id="btn-stop2" class="flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg transition-all">長野駅</button>
+                <button onclick="switchStop('stop1')" id="btn-stop1" class="active-stop flex-1 py-2.5 text-xs font-bold rounded-lg transition-all"><span id="s1Name">善光寺大門</span></button>
+                <button onclick="switchStop('stop2')" id="btn-stop2" class="flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg transition-all"><span id="s2Name">長野駅</span></button>
             </div>
         </div>
     </div>
@@ -54,13 +51,7 @@
     <div class="max-w-md mx-auto px-4 mt-6">
         <div id="nextBusContainer" class="space-y-4 text-center"></div>
 
-        <button onclick="toggleAllList()" class="w-full mt-8 bg-slate-800/50 border border-slate-700 text-slate-400 py-4 rounded-2xl text-sm font-bold shadow-lg">
-            全時刻表を表示
-        </button>
-
-        <p class="mt-4 text-[10px] text-slate-500 text-center leading-relaxed px-4">
-            ※年末年始やお盆期間などの特別ダイヤについては、<br>アルピコ交通株式会社のホームページをご確認ください。
-        </p>
+        <button onclick="toggleAllList()" class="w-full mt-8 bg-slate-800/50 border border-slate-700 text-slate-400 py-4 rounded-2xl text-sm font-bold shadow-lg">全時刻表を表示</button>
 
         <div id="fullList" class="hidden mt-6 bg-slate-900/80 rounded-3xl p-6 border border-slate-800 shadow-2xl">
             <div id="fullListContent" class="space-y-4 h-[400px] overflow-y-auto pr-2"></div>
@@ -84,143 +75,143 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
+        let currentRoute = 'to_station';
         let currentStopId = 'stop1';
         let currentDayType = 'weekday'; 
-        let allBusData = []; 
+        let allBusData = [];
 
-        // 1. 今日が平日か休日か判定する関数
-        async function checkTodayType() {
+        // 曜日判定ロジック
+        async function checkTodayType(route) {
             const now = new Date();
-            const day = now.getDay(); // 0:日, 6:土
-            if (day === 0 || day === 6) return 'holiday';
-
+            const day = now.getDay();
+            let isHol = false;
             try {
-                const y = now.getFullYear();
-                const m = (now.getMonth() + 1).toString().padStart(2, '0');
-                const d = now.getDate().toString().padStart(2, '0');
-                // 祝日APIを利用
-                const res = await fetch(`https://api.national-holidays.jp/is_holiday?date=${y}-${m}-${d}`);
+                const res = await fetch(`https://api.national-holidays.jp/is_holiday?date=${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')}`);
                 const result = await res.json();
-                return result.is_holiday ? 'holiday' : 'weekday';
-            } catch (e) {
-                return 'weekday'; // 失敗したら平日扱い
+                isHol = result.is_holiday;
+            } catch (e) {}
+
+            if (route === 'to_zenkoji') {
+                if (isHol || day === 0) return 'sunday_holiday';
+                if (day === 6) return 'saturday';
+                return 'weekday';
+            } else {
+                return (isHol || day === 0 || day === 6) ? 'holiday' : 'weekday';
             }
         }
 
-        // 時計と自動更新
-        setInterval(() => {
-            const now = new Date();
-            document.getElementById('liveClock').innerText = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
-            if (allBusData.length > 0) render(allBusData);
-        }, 1000);
+        // ルート切り替え
+        window.switchRoute = async (val) => {
+            currentRoute = val;
+            const s1 = document.getElementById('s1Name');
+            const s2 = document.getElementById('s2Name');
+            if (val === 'to_station') {
+                s1.innerText = "善光寺大門"; s2.innerText = "長野駅";
+            } else {
+                s1.innerText = "丹波島橋南"; s2.innerText = "長野駅";
+            }
+            currentDayType = await checkTodayType(val);
+            updateUI();
+            loadData();
+        };
 
-        // ボタンの見た目更新
-        function updateUI() {
-            document.getElementById('currentDayLabel').innerText = currentDayType === 'weekday' ? 'Weekday' : 'Holiday';
-            document.getElementById('btn-weekday').className = currentDayType === 'weekday' ? 'active-day flex-1 py-1.5 text-xs rounded-md transition-all' : 'flex-1 py-1.5 text-xs text-slate-500 rounded-md transition-all';
-            document.getElementById('btn-holiday').className = currentDayType === 'holiday' ? 'active-day flex-1 py-1.5 text-xs rounded-md transition-all' : 'flex-1 py-1.5 text-xs text-slate-500 rounded-md transition-all';
-            
-            document.getElementById('btn-stop1').className = currentStopId === 'stop1' ? 'active-stop flex-1 py-2.5 text-xs font-bold rounded-lg transition-all' : 'flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg transition-all';
-            document.getElementById('btn-stop2').className = currentStopId === 'stop2' ? 'active-stop flex-1 py-2.5 text-xs font-bold rounded-lg transition-all' : 'flex-1 py-2.5 text-xs font-bold text-slate-500 rounded-lg transition-all';
-        }
-
+        // 曜日切り替え
         window.switchDay = (type) => {
             currentDayType = type;
             updateUI();
             loadData();
         };
 
-        window.switchStop = (id, label) => {
+        // バス停切り替え
+        window.switchStop = (id) => {
             currentStopId = id;
-            document.getElementById('currentStopLabel').innerText = label;
             updateUI();
             loadData();
         };
 
+        function updateUI() {
+            // バス停ラベル更新
+            const activeName = document.getElementById(currentStopId === 'stop1' ? 's1Name' : 's2Name').innerText;
+            document.getElementById('currentStopLabel').innerText = activeName;
+
+            // 曜日ボタンの動的生成
+            const dayBtnArea = document.getElementById('dayButtonGroup');
+            let btns = [];
+            if (currentRoute === 'to_station') {
+                btns = [{id:'weekday', n:'平日'}, {id:'holiday', n:'休日'}];
+            } else {
+                btns = [{id:'weekday', n:'平日'}, {id:'saturday', n:'土曜'}, {id:'sunday_holiday', n:'日祝'}];
+            }
+            
+            dayBtnArea.innerHTML = btns.map(b => `
+                <button onclick="switchDay('${b.id}')" id="btn-${b.id}" 
+                class="flex-1 py-1.5 text-[10px] rounded-md transition-all font-bold ${currentDayType === b.id ? 'active-day' : 'text-slate-500'}">
+                ${b.n}</button>`).join('');
+
+            // バス停ボタンのアクティブ表示
+            document.getElementById('btn-stop1').className = (currentStopId === 'stop1' ? 'active-stop' : 'text-slate-500') + ' flex-1 py-2.5 text-xs font-bold rounded-lg transition-all';
+            document.getElementById('btn-stop2').className = (currentStopId === 'stop2' ? 'active-stop' : 'text-slate-500') + ' flex-1 py-2.5 text-xs font-bold rounded-lg transition-all';
+            
+            document.getElementById('currentDayLabel').innerText = currentDayType.replace('_', ' ').toUpperCase();
+        }
+
         function loadData() {
-            const busRef = ref(db, `timetables/${currentStopId}/${currentDayType}`);
-            onValue(busRef, (snapshot) => {
+            const path = `timetables/${currentRoute}/${currentStopId}/${currentDayType}`;
+            onValue(ref(db, path), (snapshot) => {
                 const data = snapshot.val();
-                if (data) {
-                    allBusData = Object.values(data).sort((a, b) => a.time.localeCompare(b.time));
-                    render(allBusData);
-                } else {
-                    allBusData = [];
-                    document.getElementById('nextBusContainer').innerHTML = `<p class="py-10 text-slate-600 border border-dashed border-slate-800 rounded-3xl">データが登録されていません</p>`;
-                }
+                allBusData = data ? Object.values(data).sort((a, b) => a.time.localeCompare(b.time)) : [];
+                render(allBusData);
             });
         }
 
-function render(data) {
+        function render(data) {
             const now = new Date();
-            const currentTimeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
-            
-            const upcoming = data.filter(bus => bus.time >= currentTimeStr).slice(0, 4);
+            const time = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+            const upcoming = data.filter(b => b.time >= time).slice(0, 4);
             const container = document.getElementById('nextBusContainer');
-            
-            const getOrdinal = (n) => {
-                const s = ["th", "st", "nd", "rd"],
-                      v = n % 100;
-                return n + (s[(v - 20) % 10] || s[v] || s[0]);
-            };
 
-            let newHtml = '';
             if (upcoming.length === 0) {
-                newHtml = '<p class="py-10 text-slate-600 border border-dashed border-slate-800 rounded-3xl">本日の運行は終了しました</p>';
+                container.innerHTML = '<p class="py-10 text-slate-600 border border-dashed border-slate-800 rounded-3xl">運行終了</p>';
             } else {
-                newHtml = upcoming.map((bus, i) => {
-                    const isFirst = i === 0;
-                    const ordinalLabel = getOrdinal(i + 1).toUpperCase();
-                    
-                    // 【ここを編集】系統番号（lineNum）で判別
-                    // 例：系統番号が "10" または "急行" の場合に注釈を出す
-                    const isExpress = bus.lineNum === "31快";
-                    
-                    const subNote = isExpress 
-                        ? `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（丹波島橋南まで止まりません）</div>` 
-                        : "";
-
+                container.innerHTML = upcoming.map((b, i) => {
+                    const isExp = b.lineNum === "31快";
+                    const ord = ["1ST","2ND","3RD","4TH"][i];
                     return `
-                    <div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-5 rounded-[1.8rem] text-left mb-3 shadow-lg">
+                    <div class="bus-card ${i===0?'bg-blue-600':'bg-slate-800'} p-5 rounded-[1.8rem] text-left mb-3 shadow-lg">
                         <div class="flex justify-between items-center">
                             <div>
                                 <div class="flex items-center gap-2 mb-1">
-                                    <span class="${isFirst ? 'bg-white text-blue-600' : 'bg-yellow-500 text-slate-900'} text-[10px] font-black px-1.5 py-0.5 rounded italic leading-none">${bus.lineNum}</span>
-                                    <span class="text-[10px] font-bold opacity-60 uppercase tracking-widest leading-none">${ordinalLabel}</span>
+                                    <span class="${i===0?'bg-white text-blue-600':'bg-yellow-500 text-slate-900'} text-[10px] font-black px-1.5 py-0.5 rounded italic leading-none">${b.lineNum}</span>
+                                    <span class="text-[10px] font-bold opacity-60 uppercase tracking-widest leading-none">${ord}</span>
                                 </div>
-                                <h2 class="text-xl font-black leading-tight">${bus.destination}</h2>
-                                ${subNote}
+                                <h2 class="text-xl font-black leading-tight">${b.destination}</h2>
+                                ${isExp ? '<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（丹波島橋南まで止まりません）</div>' : ''}
                             </div>
-                            <div class="digital-font text-4xl font-bold ${isFirst ? 'text-white' : 'text-yellow-400'}">${bus.time}</div>
+                            <div class="digital-font text-4xl font-bold ${i===0?'text-white':'text-yellow-400'}">${b.time}</div>
                         </div>
                     </div>`;
                 }).join('');
             }
-            if (container.innerHTML !== newHtml) container.innerHTML = newHtml;
 
-            const fullListHtml = data.map(bus => {
-
-                const isExpress = bus.lineNum === "31快";
-                
-                return `
-                <div class="flex flex-col py-3 border-b border-slate-800/50 ${bus.time < currentTimeStr ? 'opacity-20' : ''}">
+            document.getElementById('fullListContent').innerHTML = data.map(b => `
+                <div class="flex flex-col py-3 border-b border-slate-800/50 ${b.time < time ? 'opacity-20' : ''}">
                     <div class="flex justify-between items-center">
-                        <span class="text-sm font-bold">
-                            <span class="text-yellow-500 mr-2">${bus.lineNum}</span>${bus.destination}
-                        </span>
-                        <span class="digital-font text-lg">${bus.time}</span>
+                        <span class="text-sm font-bold"><span class="text-yellow-500 mr-2">${b.lineNum}</span>${b.destination}</span>
+                        <span class="digital-font text-lg">${b.time}</span>
                     </div>
-                    ${isExpress ? `<div class="text-[9px] text-yellow-600/80 font-bold mt-0.5 ml-7">（丹波島橋南まで止まりません）</div>` : ''}
-                </div>`;
-            }).join('');
-            const fullListContent = document.getElementById('fullListContent');
-            if (fullListContent.innerHTML !== fullListHtml) fullListContent.innerHTML = fullListHtml;
+                </div>`).join('');
         }
+
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('liveClock').innerText = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+        }, 1000);
+
         window.toggleAllList = () => document.getElementById('fullList').classList.toggle('hidden');
-        
-        // 起動処理
+
+        // 初回起動
         (async () => {
-            currentDayType = await checkTodayType();
+            currentDayType = await checkTodayType(currentRoute);
             updateUI();
             loadData();
         })();
