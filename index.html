@@ -80,7 +80,6 @@
         let currentDayType = 'weekday'; 
         let allBusData = [];
 
-        // 曜日判定ロジック
         async function checkTodayType(route) {
             const now = new Date();
             const day = now.getDay();
@@ -100,7 +99,6 @@
             }
         }
 
-        // ルート切り替え
         window.switchRoute = async (val) => {
             currentRoute = val;
             const s1 = document.getElementById('s1Name');
@@ -115,14 +113,12 @@
             loadData();
         };
 
-        // 曜日切り替え
         window.switchDay = (type) => {
             currentDayType = type;
             updateUI();
             loadData();
         };
 
-        // バス停切り替え
         window.switchStop = (id) => {
             currentStopId = id;
             updateUI();
@@ -130,11 +126,8 @@
         };
 
         function updateUI() {
-            // バス停ラベル更新
             const activeName = document.getElementById(currentStopId === 'stop1' ? 's1Name' : 's2Name').innerText;
             document.getElementById('currentStopLabel').innerText = activeName;
-
-            // 曜日ボタンの動的生成
             const dayBtnArea = document.getElementById('dayButtonGroup');
             let btns = [];
             if (currentRoute === 'to_station') {
@@ -142,16 +135,13 @@
             } else {
                 btns = [{id:'weekday', n:'平日'}, {id:'saturday', n:'土曜'}, {id:'sunday_holiday', n:'日祝'}];
             }
-            
             dayBtnArea.innerHTML = btns.map(b => `
                 <button onclick="switchDay('${b.id}')" id="btn-${b.id}" 
                 class="flex-1 py-1.5 text-[10px] rounded-md transition-all font-bold ${currentDayType === b.id ? 'active-day' : 'text-slate-500'}">
                 ${b.n}</button>`).join('');
 
-            // バス停ボタンのアクティブ表示
             document.getElementById('btn-stop1').className = (currentStopId === 'stop1' ? 'active-stop' : 'text-slate-500') + ' flex-1 py-2.5 text-xs font-bold rounded-lg transition-all';
             document.getElementById('btn-stop2').className = (currentStopId === 'stop2' ? 'active-stop' : 'text-slate-500') + ' flex-1 py-2.5 text-xs font-bold rounded-lg transition-all';
-            
             document.getElementById('currentDayLabel').innerText = currentDayType.replace('_', ' ').toUpperCase();
         }
 
@@ -164,97 +154,70 @@
             });
         }
 
-function render(data) {
+        function render(data) {
             const now = new Date();
-            const time = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
-            const upcoming = data.filter(b => b.time >= time).slice(0, 4);
+            const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+            const upcoming = data.filter(b => b.time >= timeStr).slice(0, 4);
             const container = document.getElementById('nextBusContainer');
+
+            // 乗り場判定用関数
+            const getPlatform = (line) => {
+                if (["10", "臨10", "11", "16", "17"].includes(line)) return "①";
+                if (line.startsWith("3")) return "③";
+                if (line.startsWith("7")) return "⑦";
+                return "";
+            };
 
             if (upcoming.length === 0) {
                 container.innerHTML = '<p class="py-10 text-slate-600 border border-dashed border-slate-800 rounded-3xl">運行終了</p>';
             } else {
                 container.innerHTML = upcoming.map((b, i) => {
-                    // 180行目付近：upcoming.map((bus, i) => { の直後に追加
-const isFirst = i === 0;
-const ordinalLabel = getOrdinal(i + 1).toUpperCase();
-
-// --- ここから追加 ---
-let platform = "";
-const line = bus.lineNum;
-
-if (["10", "臨10", "11", "16", "17"].includes(line)) {
-    platform = "①";
-} else if (line.startsWith("3")) {
-    platform = "③";
-} else if (line.startsWith("7")) {
-    platform = "⑦";
-}
-// --- ここまで追加 ---
+                    const isFirst = i === 0;
+                    const plat = getPlatform(b.lineNum);
                     const isExp = b.lineNum === "31快";
                     const ord = ["1ST","2ND","3RD","4TH"][i];
-
-                    // --- メッセージ出し分けロジック ---
+                    
                     let subNote = "";
                     if (isExp) {
-                        if (currentRoute === 'to_zenkoji') {
-                            // 丹波島 ➔ 善光寺方面のメッセージ
-                            subNote = `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（長野駅まで止まりません）</div>`;
-                        } else {
-                            // 善光寺 ➔ 丹波島方面のメッセージ
-                            subNote = `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（丹波島橋南まで止まりません）</div>`;
-                        }
+                        subNote = currentRoute === 'to_zenkoji' 
+                            ? `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（長野駅まで止まりません）</div>`
+                            : `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（丹波島橋南まで止まりません）</div>`;
                     }
-                    // ------------------------------
 
                     return `
-<div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-5 rounded-[1.8rem] text-left mb-3 shadow-lg relative overflow-hidden">
-    
-    ${platform ? `<div class="absolute top-4 right-4 bg-white/20 backdrop-blur-md px-2 py-1 rounded-md text-[10px] font-black text-white border border-white/30">長野駅${platform}</div>` : ''}
-
-    <div class="flex justify-between items-center">
+                    <div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-5 rounded-[1.8rem] text-left mb-3 shadow-lg relative overflow-hidden">
+                        ${plat ? `<div class="absolute top-4 right-4 bg-white/20 backdrop-blur-md px-2 py-1 rounded-md text-[10px] font-black text-white border border-white/30">長野駅${plat}</div>` : ''}
+                        <div class="flex justify-between items-center">
                             <div>
                                 <div class="flex items-center gap-2 mb-1">
-                                    <span class="${i===0?'bg-white text-blue-600':'bg-yellow-500 text-slate-900'} text-[10px] font-black px-1.5 py-0.5 rounded italic leading-none">${b.lineNum}</span>
+                                    <span class="${isFirst ? 'bg-white text-blue-600' : 'bg-yellow-500 text-slate-900'} text-[10px] font-black px-1.5 py-0.5 rounded italic leading-none">${b.lineNum}</span>
                                     <span class="text-[10px] font-bold opacity-60 uppercase tracking-widest leading-none">${ord}</span>
                                 </div>
                                 <h2 class="text-xl font-black leading-tight">${b.destination}</h2>
                                 ${subNote}
                             </div>
-                            <div class="digital-font text-4xl font-bold ${i===0?'text-white':'text-yellow-400'}">${b.time}</div>
+                            <div class="digital-font text-4xl font-bold ${isFirst ? 'text-white' : 'text-yellow-400'}">${b.time}</div>
                         </div>
                     </div>`;
                 }).join('');
             }
 
-            // 下のフルリスト側にも同じメッセージを出す場合
             document.getElementById('fullListContent').innerHTML = data.map(b => {
+                const plat = getPlatform(b.lineNum);
                 const isExp = b.lineNum === "31快";
-                let pSmall = ""; 
-if (["10", "臨10", "11", "16", "17"].includes(bus.lineNum)) pSmall = "①";
-else if (bus.lineNum.startsWith("3")) pSmall = "③";
-else if (bus.lineNum.startsWith("7")) pSmall = "⑦";
-
-return `
-<div class="flex flex-col py-3 border-b border-slate-800/50 ${bus.time < currentTimeStr ? 'opacity-20' : ''}">
-    <div class="flex justify-between items-center">
-        <span class="text-sm font-bold">
-            <span class="text-yellow-500 mr-2">${bus.lineNum}</span>
-            ${bus.destination}
-            ${pSmall ? `<span class="ml-2 text-[9px] opacity-60 bg-slate-700 px-1 rounded">長野駅${pSmall}</span>` : ''}
-        </span>
-        <span class="digital-font text-lg">${bus.time}</span>
-    </div>
                 let listNote = "";
                 if (isExp) {
                     listNote = currentRoute === 'to_zenkoji' 
                         ? '<div class="text-[9px] text-yellow-600/80 font-bold mt-0.5 ml-7">（長野駅まで止まりません）</div>'
                         : '<div class="text-[9px] text-yellow-600/80 font-bold mt-0.5 ml-7">（丹波島橋南まで止まりません）</div>';
                 }
-                
                 return `
-                <div class="flex flex-col py-3 border-b border-slate-800/50 ${b.time < time ? 'opacity-20' : ''}">
+                <div class="flex flex-col py-3 border-b border-slate-800/50 ${b.time < timeStr ? 'opacity-20' : ''}">
                     <div class="flex justify-between items-center">
-                        <span class="text-sm font-bold"><span class="text-yellow-500 mr-2">${b.lineNum}</span>${b.destination}</span>
+                        <span class="text-sm font-bold">
+                            <span class="text-yellow-500 mr-2">${b.lineNum}</span>${b.destination}
+                            ${plat ? `<span class="ml-2 text-[9px] opacity-60 bg-slate-700 px-1 rounded text-white">長野駅${plat}</span>` : ''}
+                        </span>
                         <span class="digital-font text-lg">${b.time}</span>
                     </div>
                     ${listNote}
@@ -269,7 +232,6 @@ return `
 
         window.toggleAllList = () => document.getElementById('fullList').classList.toggle('hidden');
 
-        // 初回起動
         (async () => {
             currentDayType = await checkTodayType(currentRoute);
             updateUI();
