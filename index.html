@@ -164,7 +164,7 @@
             });
         }
 
-        function render(data) {
+function render(data) {
             const now = new Date();
             const time = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
             const upcoming = data.filter(b => b.time >= time).slice(0, 4);
@@ -176,6 +176,20 @@
                 container.innerHTML = upcoming.map((b, i) => {
                     const isExp = b.lineNum === "31快";
                     const ord = ["1ST","2ND","3RD","4TH"][i];
+
+                    // --- メッセージ出し分けロジック ---
+                    let subNote = "";
+                    if (isExp) {
+                        if (currentRoute === 'to_zenkoji') {
+                            // 丹波島 ➔ 善光寺方面のメッセージ
+                            subNote = `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（長野駅まで止まりません）</div>`;
+                        } else {
+                            // 善光寺 ➔ 丹波島方面のメッセージ
+                            subNote = `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（丹波島橋南まで止まりません）</div>`;
+                        }
+                    }
+                    // ------------------------------
+
                     return `
                     <div class="bus-card ${i===0?'bg-blue-600':'bg-slate-800'} p-5 rounded-[1.8rem] text-left mb-3 shadow-lg">
                         <div class="flex justify-between items-center">
@@ -185,7 +199,7 @@
                                     <span class="text-[10px] font-bold opacity-60 uppercase tracking-widest leading-none">${ord}</span>
                                 </div>
                                 <h2 class="text-xl font-black leading-tight">${b.destination}</h2>
-                                ${isExp ? '<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（丹波島橋南まで止まりません）</div>' : ''}
+                                ${subNote}
                             </div>
                             <div class="digital-font text-4xl font-bold ${i===0?'text-white':'text-yellow-400'}">${b.time}</div>
                         </div>
@@ -193,13 +207,25 @@
                 }).join('');
             }
 
-            document.getElementById('fullListContent').innerHTML = data.map(b => `
+            // 下のフルリスト側にも同じメッセージを出す場合
+            document.getElementById('fullListContent').innerHTML = data.map(b => {
+                const isExp = b.lineNum === "31快";
+                let listNote = "";
+                if (isExp) {
+                    listNote = currentRoute === 'to_zenkoji' 
+                        ? '<div class="text-[9px] text-yellow-600/80 font-bold mt-0.5 ml-7">（長野駅まで止まりません）</div>'
+                        : '<div class="text-[9px] text-yellow-600/80 font-bold mt-0.5 ml-7">（丹波島橋南まで止まりません）</div>';
+                }
+                
+                return `
                 <div class="flex flex-col py-3 border-b border-slate-800/50 ${b.time < time ? 'opacity-20' : ''}">
                     <div class="flex justify-between items-center">
                         <span class="text-sm font-bold"><span class="text-yellow-500 mr-2">${b.lineNum}</span>${b.destination}</span>
                         <span class="digital-font text-lg">${b.time}</span>
                     </div>
-                </div>`).join('');
+                    ${listNote}
+                </div>`;
+            }).join('');
         }
 
         setInterval(() => {
