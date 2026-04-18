@@ -10,15 +10,39 @@
     <link rel="apple-touch-icon" href="icon.png">
 
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=Noto+Sans+JP:wght@400;700;900&display=swap');
-        body { font-family: 'Noto Sans JP', sans-serif; background-color: #0f172a; }
-        .digital-font { font-family: 'Chakra Petch', sans-serif; }
-        .bus-card { transition: all 0.4s ease; animation: slideUp 0.4s ease-out forwards; }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
-        .active-day { background-color: #f59e0b; color: #0f172a; font-weight: 900; }
-        .active-stop { background-color: #2563eb; color: white; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); }
-    </style>
+   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=Noto+Sans+JP:wght@400;700;900&display=swap');
+    body { font-family: 'Noto Sans JP', sans-serif; background-color: #0f172a; }
+    .digital-font { font-family: 'Chakra Petch', sans-serif; }
+    
+    /* カードのアニメーション */
+    .bus-card { transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1); animation: slideUp 0.5s ease-out forwards; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ★ボタンの共通設定：ここを強化 */
+    button { 
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+        position: relative;
+        overflow: hidden;
+    }
+    button:active { transform: scale(0.95); } /* 押した時に少し小さくなる */
+
+    /* 平日・休日ボタンのアクティブ色 */
+    .active-day { 
+        background-color: #f59e0b; 
+        color: #0f172a; 
+        font-weight: 900;
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    }
+
+    /* バス停ボタンのアクティブ色 */
+    .active-stop { 
+        background-color: #2563eb; 
+        color: white; 
+        font-weight: 900;
+        box-shadow: 0 4px 20px rgba(37, 99, 235, 0.5); 
+    }
+</style>
 </head>
 <body class="text-slate-100 min-h-screen pb-10">
 
@@ -117,19 +141,32 @@
             loadData();
         };
 
-        function updateUI() {
-            document.getElementById('currentDayLabel').innerText = currentDayType.toUpperCase();
-            const dayBtnArea = document.getElementById('dayButtonGroup');
-            const btns = [{id:'weekday', n:'平日'}, {id:'holiday', n:'休日'}];
-            dayBtnArea.innerHTML = btns.map(b => `
-                <button onclick="switchDay('${b.id}')" 
-                class="flex-1 py-1.5 text-xs rounded-md transition-all font-bold ${currentDayType === b.id ? 'active-day' : 'text-slate-500'}">
-                ${b.n}</button>`).join('');
+function updateUI() {
+    document.getElementById('currentDayLabel').innerText = currentDayType.toUpperCase();
+    const dayBtnArea = document.getElementById('dayButtonGroup');
+    const btns = [{id:'weekday', n:'平日'}, {id:'holiday', n:'休日'}];
+    
+    // 平日・休日ボタンの生成とアニメーションクラス適用
+    dayBtnArea.innerHTML = btns.map(b => {
+        const isActive = currentDayType === b.id;
+        return `
+            <button onclick="switchDay('${b.id}')" 
+            class="flex-1 py-2 text-xs rounded-md font-bold ${isActive ? 'active-day' : 'text-slate-500 hover:text-slate-300'}">
+            ${b.n}</button>`;
+    }).join('');
 
-            document.getElementById('btn-stop1').className = (currentStopId === 'stop1' ? 'active-stop' : 'text-slate-500') + ' flex-1 py-2.5 text-xs font-bold rounded-lg transition-all';
-            document.getElementById('btn-stop2').className = (currentStopId === 'stop2' ? 'active-stop' : 'text-slate-500') + ' flex-1 py-2.5 text-xs font-bold rounded-lg transition-all';
-        }
+    // バス停ボタンのアニメーションクラス適用
+    const btnStop1 = document.getElementById('btn-stop1');
+    const btnStop2 = document.getElementById('btn-stop2');
 
+    if (currentStopId === 'stop1') {
+        btnStop1.className = 'active-stop flex-1 py-3 text-xs rounded-lg transition-all';
+        btnStop2.className = 'text-slate-500 hover:text-slate-300 flex-1 py-3 text-xs font-bold rounded-lg transition-all';
+    } else {
+        btnStop1.className = 'text-slate-500 hover:text-slate-300 flex-1 py-3 text-xs font-bold rounded-lg transition-all';
+        btnStop2.className = 'active-stop flex-1 py-3 text-xs rounded-lg transition-all';
+    }
+}
         function loadData() {
             const path = `timetables/${currentRoute}/${currentStopId}/${currentDayType}`;
             onValue(ref(db, path), (snapshot) => {
