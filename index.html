@@ -28,7 +28,7 @@
             <div id="newsList" class="space-y-4"></div>
             <div id="newsDetail" class="hidden">
                 <p id="detailDate" class="text-yellow-500 font-bold text-sm mb-1"></p>
-                <h3 id="detailTitle" class="text-2xl font-black mb-4 leading-tight text-white"></h3>
+                <h3 id="detailTitle" class="text-2xl font-black mb-4 leading-tight"></h3>
                 <div id="detailContent" class="text-slate-300 leading-relaxed whitespace-pre-wrap border-t border-slate-800 pt-4"></div>
                 <button onclick="showNewsList()" class="mt-8 text-blue-400 font-bold text-sm">← 一覧に戻る</button>
             </div>
@@ -38,20 +38,16 @@
     <div class="sticky top-0 z-50 bg-[#0f172a]/95 backdrop-blur-md border-b border-slate-800 shadow-xl">
         <div class="max-w-md mx-auto px-6 pt-5 pb-3">
             <div class="flex justify-between items-center mb-4">
-                <button onclick="openNews()" class="relative p-2 bg-slate-800/50 rounded-full border border-slate-700">
+                <button onclick="openNews()" class="p-2 bg-slate-800/50 rounded-full border border-slate-700">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
-                    <span class="absolute top-2 right-2 flex h-2 w-2">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                    </span>
                 </button>
 
                 <div class="flex-1 text-right ml-4">
                     <div id="liveClock" class="digital-font text-5xl font-bold text-white leading-none">00:00</div>
                 </div>
-                
+
                 <div class="text-right ml-4">
                     <p id="currentDayLabel" class="text-xs font-black text-yellow-500 tracking-widest uppercase italic">Checking...</p>
                     <p id="currentStopLabel" class="text-xl font-black tracking-tighter text-white italic leading-tight">善光寺大門</p>
@@ -65,8 +61,7 @@
                 </select>
             </div>
             
-            <div id="dayButtonGroup" class="flex bg-slate-900/50 rounded-lg p-1 border border-slate-800 mb-3 gap-1">
-                </div>
+            <div id="dayButtonGroup" class="flex bg-slate-900/50 rounded-lg p-1 border border-slate-800 mb-3 gap-1"></div>
 
             <div class="flex bg-slate-900 rounded-xl p-1 border border-slate-700">
                 <button onclick="switchStop('stop1')" id="btn-stop1" class="flex-1 py-2.5 text-xs font-bold rounded-lg transition-all">善光寺大門</button>
@@ -104,7 +99,9 @@
         let currentStopId = 'stop1';
         let currentDayType = 'weekday'; 
         let allBusData = [];
+        let allNews = [];
 
+        // 判定ロジック
         async function checkTodayType() {
             const now = new Date();
             const day = now.getDay();
@@ -115,36 +112,32 @@
                 isHoliday = result.is_holiday;
             } catch (e) {}
 
-            // ルートによって判定ロジックを分ける
             if (currentRoute === 'to_zenkoji') {
                 if (isHoliday || day === 0) return 'sunday_holiday';
                 if (day === 6) return 'saturday';
                 return 'weekday';
             } else {
-                // to_station は今まで通り 平日(weekday) or 休日(holiday)
                 return (isHoliday || day === 0 || day === 6) ? 'holiday' : 'weekday';
             }
         }
 
+        // 時計の即時更新
+        function updateClock() {
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            document.getElementById('liveClock').innerText = `${hours}:${minutes}`;
+        }
+
         window.switchRoute = async (val) => {
             currentRoute = val;
-            if (val === 'to_station') {
-                document.getElementById('btn-stop1').innerText = "善光寺大門";
-            } else {
-                document.getElementById('btn-stop1').innerText = "丹波島橋南";
-            }
-            // ルートを切り替えた時に、そのルート用の今日の日付タイプを再取得
+            document.getElementById('btn-stop1').innerText = (val === 'to_station') ? "善光寺大門" : "丹波島橋南";
             currentDayType = await checkTodayType();
             updateUI();
             loadData();
         };
 
-        window.switchDay = (type) => {
-            currentDayType = type;
-            updateUI();
-            loadData();
-        };
-
+        window.switchDay = (type) => { currentDayType = type; updateUI(); loadData(); };
         window.switchStop = (id) => {
             currentStopId = id;
             document.getElementById('currentStopLabel').innerText = document.getElementById(`btn-${id}`).innerText;
@@ -152,75 +145,13 @@
             loadData();
         };
 
-        let allNews = [];
-
-        // ★追加：お知らせを開く
-        window.openNews = () => {
-            document.getElementById('newsOverlay').classList.remove('hidden');
-            loadNews();
-        };
-
-        // ★追加：お知らせを閉じる（トップに戻る）
-        window.closeNews = () => {
-            document.getElementById('newsOverlay').classList.add('hidden');
-            showNewsList(); 
-        };
-
-        // ★追加：Firebaseからお知らせ（news階層）を取得
-        function loadNews() {
-            onValue(ref(db, 'news'), (snapshot) => {
-                const data = snapshot.val();
-                // データを配列に変換して新しい順に並び替え
-                allNews = data ? Object.entries(data).map(([id, val]) => val).reverse() : [];
-                showNewsList();
-            });
-        }
-
-        // ★追加：お知らせ一覧を表示
-        window.showNewsList = () => {
-            document.getElementById('newsHeader').innerText = "INFORMATION";
-            document.getElementById('newsList').classList.remove('hidden');
-            document.getElementById('newsDetail').classList.add('hidden');
-            
-            const listContainer = document.getElementById('newsList');
-            if (allNews.length === 0) {
-                listContainer.innerHTML = '<p class="text-slate-500 italic">現在お知らせはありません。</p>';
-                return;
-            }
-
-            listContainer.innerHTML = allNews.map((n, index) => `
-                <div onclick="showDetail(${index})" class="bg-slate-900 border border-slate-800 p-5 rounded-2xl active:scale-95 transition-transform">
-                    <p class="text-[10px] font-bold text-slate-500 mb-1">${n.date}</p>
-                    <h3 class="font-bold text-white text-lg leading-tight">${n.title}</h3>
-                    <p class="text-blue-400 text-[10px] mt-3 font-bold">詳しく見る →</p>
-                </div>
-            `).join('');
-        };
-
-        // ★追加：お知らせ詳細を表示
-        window.showDetail = (index) => {
-            const n = allNews[index];
-            document.getElementById('newsHeader').innerText = "DETAILS";
-            document.getElementById('newsList').classList.add('hidden');
-            document.getElementById('newsDetail').classList.remove('hidden');
-            
-            document.getElementById('detailDate').innerText = n.date;
-            document.getElementById('detailTitle').innerText = n.title;
-            document.getElementById('detailContent').innerText = n.content;
-        };
         function updateUI() {
             const labelMap = { 'weekday': 'WEEKDAY', 'saturday': 'SATURDAY', 'sunday_holiday': 'SUN/HOL', 'holiday': 'HOLIDAY' };
             document.getElementById('currentDayLabel').innerText = labelMap[currentDayType] || currentDayType.toUpperCase();
-
             const dayBtnArea = document.getElementById('dayButtonGroup');
-            let btns = [];
-            
-            // ルートによって表示するボタンの構成を変える
-            if (currentRoute === 'to_zenkoji') {
-                btns = [{id:'weekday', n:'平日'}, {id:'saturday', n:'土曜'}, {id:'sunday_holiday', n:'日祝'}];
-            } else {
-                btns = [{id:'weekday', n:'平日'}, {id:'holiday', n:'休日'}];
-            }
+            let btns = (currentRoute === 'to_zenkoji') 
+                ? [{id:'weekday', n:'平日'}, {id:'saturday', n:'土曜'}, {id:'sunday_holiday', n:'日祝'}]
+                : [{id:'weekday', n:'平日'}, {id:'holiday', n:'休日'}];
             
             dayBtnArea.innerHTML = btns.map(b => `
                 <button onclick="switchDay('${b.id}')" 
@@ -242,7 +173,7 @@
             });
         }
 
-function render(data) {
+        function render(data) {
             const now = new Date();
             const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
             const upcoming = data.filter(b => b.time >= timeStr).slice(0, 4);
@@ -266,8 +197,6 @@ function render(data) {
                     const isFirst = i === 0;
                     const platBadge = getPlatformBadge(b.lineNum);
                     const lineStr = String(b.lineNum);
-                    
-                    // ★ご指定の警告スタイルと内容
                     let subNote = "";
                     if (lineStr === "31快") {
                         subNote = currentRoute === 'to_zenkoji' 
@@ -276,9 +205,7 @@ function render(data) {
                     } else if ((lineStr === "10" || lineStr === "79") && currentRoute === 'to_zenkoji') {
                         subNote = `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（善光寺大門で降りてください）</div>`;
                     }
-
-                    return `
-                    <div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-5 rounded-[1.8rem] text-left mb-3 shadow-lg relative">
+                    return `<div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-5 rounded-[1.8rem] text-left mb-3 shadow-lg relative">
                         <div class="flex justify-between items-center">
                             <div>
                                 <div class="flex items-center gap-2 mb-1.5">
@@ -300,46 +227,63 @@ function render(data) {
                 const lineStr = String(b.lineNum);
                 let listNote = "";
                 if (lineStr === "31快") {
-                    listNote = currentRoute === 'to_zenkoji' 
-                        ? '<div class="text-[9px] text-yellow-600/80 font-bold mt-0.5 ml-7">（長野駅まで止まりません）</div>'
-                        : '<div class="text-[9px] text-yellow-600/80 font-bold mt-0.5 ml-7">（丹波島橋南まで止まりません）</div>';
+                    listNote = currentRoute === 'to_zenkoji' ? '（長野駅まで止まりません）' : '（丹波島橋南まで止まりません）';
                 } else if ((lineStr === "10" || lineStr === "79") && currentRoute === 'to_zenkoji') {
-                    listNote = '<div class="text-[9px] text-yellow-600/80 font-bold mt-0.5 ml-7">（善光寺大門で降りてください）</div>';
+                    listNote = '（善光寺大門で降りてください）';
                 }
-                return `
-                <div class="flex flex-col py-3 border-b border-slate-800/50 ${b.time < timeStr ? 'opacity-20' : ''}">
+                return `<div class="flex flex-col py-3 border-b border-slate-800/50 ${b.time < timeStr ? 'opacity-20' : ''}">
                     <div class="flex justify-between items-center">
                         <span class="text-sm font-bold flex items-center gap-2">
-                            ${platBadge}
-                            <span class="text-yellow-500">${b.lineNum}</span>
-                            <span>${b.destination}</span>
+                            ${platBadge}<span class="text-yellow-500">${b.lineNum}</span><span>${b.destination}</span>
                         </span>
                         <span class="digital-font text-lg">${b.time}</span>
                     </div>
-                    ${listNote}
+                    ${listNote ? `<div class="text-[9px] text-yellow-600/80 font-bold mt-0.5 ml-7">${listNote}</div>` : ''}
                 </div>`;
             }).join('');
         }
 
-// 1分ごとに時計とバス一覧を自動更新する
+        // お知らせ管理
+        window.openNews = () => { document.getElementById('newsOverlay').classList.remove('hidden'); loadNews(); };
+        window.closeNews = () => { document.getElementById('newsOverlay').classList.add('hidden'); showNewsList(); };
+        function loadNews() {
+            onValue(ref(db, 'news'), (snapshot) => {
+                const data = snapshot.val();
+                allNews = data ? Object.values(data).reverse() : [];
+                showNewsList();
+            });
+        }
+        window.showNewsList = () => {
+            document.getElementById('newsHeader').innerText = "INFORMATION";
+            document.getElementById('newsList').classList.remove('hidden');
+            document.getElementById('newsDetail').classList.add('hidden');
+            document.getElementById('newsList').innerHTML = allNews.map((n, i) => `
+                <div onclick="showDetail(${i})" class="bg-slate-900 border border-slate-800 p-5 rounded-2xl active:scale-95 transition-transform">
+                    <p class="text-[10px] font-bold text-slate-500 mb-1">${n.date}</p>
+                    <h3 class="font-bold text-white text-lg leading-tight">${n.title}</h3>
+                    <p class="text-blue-400 text-[10px] mt-3 font-bold">詳しく見る →</p>
+                </div>`).join('');
+        };
+        window.showDetail = (i) => {
+            const n = allNews[i];
+            document.getElementById('newsHeader').innerText = "DETAILS";
+            document.getElementById('newsList').classList.add('hidden');
+            document.getElementById('newsDetail').classList.remove('hidden');
+            document.getElementById('detailDate').innerText = n.date;
+            document.getElementById('detailTitle').innerText = n.title;
+            document.getElementById('detailContent').innerText = n.content;
+        };
+
+        // 1分ごとの更新
         setInterval(() => {
-            const now = new Date();
-            const hours = now.getHours().toString().padStart(2, '0');
-            const minutes = now.getMinutes().toString().padStart(2, '0');
-            const timeStr = `${hours}:${minutes}`;
-
-            // 時計を更新
-            document.getElementById('liveClock').innerText = timeStr;
-
-            // ★ 1分ごとにデータを再描画（これで過ぎたバスが自動で消える）
-            if (allBusData.length > 0) {
-                render(allBusData);
-            }
-        }, 60000); // 60秒（1分）ごとに実行
+            updateClock();
+            if (allBusData.length > 0) render(allBusData);
+        }, 60000);
 
         window.toggleAllList = () => document.getElementById('fullList').classList.toggle('hidden');
 
         (async () => {
+            updateClock(); // 起動時に即表示
             currentDayType = await checkTodayType();
             updateUI();
             loadData();
