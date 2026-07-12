@@ -205,9 +205,11 @@
                         subNote = currentRoute === 'to_zenkoji' 
                             ? `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（長野駅まで止まりません）</div>`
                             : `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（丹波島橋南まで止まりません）</div>`;
-                    } else if ((lineStr === "10" || lineStr === "79") && currentRoute === 'to_zenkoji') {
-                        subNote = `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（善光寺大門で降りてください）</div>`;
-                    }
+} else if (lineStr === "10" && currentRoute === 'to_zenkoji') {
+    subNote = `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（善光寺大門で降りてください）</div>`;
+} else if (lineStr === "79" && currentRoute === 'to_zenkoji') {
+    subNote = `<div class="text-[10px] font-bold mt-1 text-yellow-200/90 animate-pulse">（信大教育学部前で降りてください）</div>`;
+}
                     return `<div class="bus-card ${isFirst ? 'bg-blue-600' : 'bg-slate-800'} p-5 rounded-[1.8rem] text-left mb-3 shadow-lg relative">
                         <div class="flex justify-between items-center">
                             <div>
@@ -231,9 +233,11 @@
                 let listNote = "";
                 if (lineStr === "31快") {
                     listNote = currentRoute === 'to_zenkoji' ? '（長野駅まで止まりません）' : '（丹波島橋南まで止まりません）';
-                } else if ((lineStr === "10" || lineStr === "79") && currentRoute === 'to_zenkoji') {
-                    listNote = '（善光寺大門で降りてください）';
-                }
+} else if (lineStr === "10" && currentRoute === 'to_zenkoji') {
+    listNote = '（善光寺大門で降りてください）';
+} else if (lineStr === "79" && currentRoute === 'to_zenkoji') {
+    listNote = '（信大教育学部前で降りてください）';
+}
                 return `<div class="flex flex-col py-3 border-b border-slate-800/50 ${b.time < timeStr ? 'opacity-20' : ''}">
                     <div class="flex justify-between items-center">
                         <span class="text-sm font-bold flex items-center gap-2">
