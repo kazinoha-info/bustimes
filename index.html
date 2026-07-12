@@ -46,8 +46,13 @@
                 </button>
             </div>
 
+            <!-- 中央：時計ブロック（真下にプチ天気を配置） -->
             <div class="flex-1 text-center">
                 <div id="liveClock" class="digital-font text-5xl font-bold text-white tracking-wider leading-none">00:00</div>
+                <div id="miniWeather" class="text-[11px] font-bold text-slate-400 mt-1.5 flex items-center justify-center gap-1 opacity-0 transition-opacity duration-500">
+                    <span id="weatherIcon">⏳</span>
+                    <span id="weatherTemp">--°C</span>
+                </div>
             </div>
 
             <div class="w-24 text-right"> <p id="currentDayLabel" class="text-[10px] font-black text-yellow-500 tracking-widest uppercase italic leading-none mb-1">Checking...</p>
@@ -104,6 +109,33 @@
         let allBusData = [];
         let allNews = [];
 
+        // 天気予報の取得関数 (Open-Meteoを使用: 長野市付近の座標を設定)
+        async function fetchWeather() {
+            try {
+                const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=36.6513&longitude=138.1810&current_weather=true&timezone=Asia%2FTokyo");
+                const data = await res.json();
+                if (data && data.current_weather) {
+                    const temp = Math.round(data.current_weather.temperature);
+                    const code = data.current_weather.weathercode;
+                    
+                    // WMO Weather interpretation codes (WW) に基づくアイコン変換
+                    let icon = "☁️";
+                    if (code === 0) icon = "☀️"; // 快晴
+                    else if ([1, 2, 3].includes(code)) icon = "🌤️"; // 晴れ・曇りがち
+                    else if ([45, 48].includes(code)) icon = "🌫️"; // 霧
+                    else if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code)) icon = "☔"; // 雨・しぐれ
+                    else if ([71, 73, 75, 77, 85, 86].includes(code)) icon = "❄️"; // 雪
+                    else if ([95, 96, 99].includes(code)) icon = "⚡"; // 雷雨
+
+                    document.getElementById('weatherIcon').innerText = icon;
+                    document.getElementById('weatherTemp').innerText = `${temp}°C`;
+                    document.getElementById('miniWeather').classList.remove('opacity-0');
+                }
+            } catch (error) {
+                console.log("天気データの取得に失敗しました", error);
+            }
+        }
+
         // 判定ロジック
         async function checkTodayType() {
             const now = new Date();
@@ -134,9 +166,8 @@
 
         window.switchRoute = async (val) => {
             currentRoute = val;
-            document.getElementById('routeSelect').value = val; // セレクトボックスの表示を同期
+            document.getElementById('routeSelect').value = val;
             document.getElementById('btn-stop1').innerText = (val === 'to_station') ? "善光寺大門" : "丹波島橋南";
-            // stop2の文言もルートに合わせて変更する（長野駅は共通でもよいですが一応整合性を保つため）
             document.getElementById('btn-stop2').innerText = "長野駅";
             
             currentDayType = await checkTodayType();
@@ -170,7 +201,6 @@
             btnStop1.className = (currentStopId === 'stop1' ? 'active-stop' : 'text-slate-500') + ' flex-1 py-3 text-xs font-bold rounded-lg transition-all';
             btnStop2.className = (currentStopId === 'stop2' ? 'active-stop' : 'text-slate-500') + ' flex-1 py-3 text-xs font-bold rounded-lg transition-all';
             
-            // 現在の停留所ラベルを最新状態にする
             document.getElementById('currentStopLabel').innerText = document.getElementById(`btn-${currentStopId}`).innerText;
         }
 
@@ -257,7 +287,6 @@
             }).join('');
         }
 
-        // お知らせ管理
         window.openNews = () => { document.getElementById('newsOverlay').classList.remove('hidden'); loadNews(); };
         window.closeNews = () => { document.getElementById('newsOverlay').classList.add('hidden'); showNewsList(); };
         function loadNews() {
@@ -288,47 +317,47 @@
             document.getElementById('detailContent').innerText = n.content;
         };
 
-        // 1分ごとの更新
+        // 1分ごとの更新（時計の更新と、30分ごとに天気予報をリフレッシュ）
+        let checkCount = 0;
         setInterval(() => {
             updateClock();
             if (allBusData.length > 0) render(allBusData);
+            
+            // 30分に1回天気を更新
+            checkCount++;
+            if (checkCount >= 30) {
+                fetchWeather();
+                checkCount = 0;
+            }
         }, 60000);
 
         window.toggleAllList = () => document.getElementById('fullList').classList.toggle('hidden');
 
-        // 位置情報から一番近い停留所（stop1かstop2）を自動判定する関数
         function autoSelectClosestStop() {
             if (!navigator.geolocation) return;
 
-            // 善光寺大門と丹波島橋南の概算座標（長野駅経由もカバーできるように適宜微調整してください）
             const STOPS_GEO = {
-                zenkoji: { lat: 36.6601, lng: 138.1883 },   // 善光寺大門 付近
-                tanbajima: { lat: 36.6215, lng: 138.1812 }  // 丹波島橋南 付近
+                zenkoji: { lat: 36.6601, lng: 138.1883 },   
+                tanbajima: { lat: 36.6215, lng: 138.1812 }  
             };
 
             navigator.geolocation.getCurrentPosition((position) => {
                 const userLat = position.coords.latitude;
                 const userLng = position.coords.longitude;
 
-                // 2つのバス停との簡易的な距離（直線距離の二乗）を比較
                 const distToZenkoji = Math.pow(userLat - STOPS_GEO.zenkoji.lat, 2) + Math.pow(userLng - STOPS_GEO.zenkoji.lng, 2);
                 const distToTanbajima = Math.pow(userLat - STOPS_GEO.tanbajima.lat, 2) + Math.pow(userLng - STOPS_GEO.tanbajima.lng, 2);
 
                 if (currentRoute === 'to_station') {
-                    // 善光寺 ➔ 丹波島 方面のとき：stop1=善光寺大門、stop2=長野駅
-                    // ユーザーが丹波島側にいる場合は（本来逆ルートですが）直近の停留所として長野駅(stop2)を、善光寺側にいれば善光寺大門(stop1)を選択
                     currentStopId = (distToZenkoji < distToTanbajima) ? 'stop1' : 'stop2';
                 } else {
-                    // 丹波島 ➔ 善光寺 方面のとき：stop1=丹波島橋南、stop2=長野駅
-                    // ユーザーが丹波島側にいれば丹波島橋南(stop1)、善光寺側にいれば長野駅(stop2)を選択
                     currentStopId = (distToTanbajima < distToZenkoji) ? 'stop1' : 'stop2';
                 }
 
-                // UIとデータを更新
                 updateUI();
                 loadData();
             }, (error) => {
-                console.log("位置情報の取得に失敗しました。デフォルト値を使用します。");
+                console.log("位置情報の取得に失敗しました。");
             }, { timeout: 5000 });
         }
 
@@ -336,12 +365,12 @@
         (async () => {
             updateClock(); 
 
-            // 1. 時間によるルート自動選択 (12時を境にする)
+            // 1. 時間によるルート自動選択
             const currentHour = new Date().getHours();
             if (currentHour < 12) {
-                currentRoute = 'to_zenkoji'; // 0〜11時台：丹波島橋南 ➔ 善光寺 方面
+                currentRoute = 'to_zenkoji'; 
             } else {
-                currentRoute = 'to_station'; // 12〜23時台：善光寺 ➔ 丹波島橋南 方面
+                currentRoute = 'to_station'; 
             }
             document.getElementById('routeSelect').value = currentRoute;
             document.getElementById('btn-stop1').innerText = (currentRoute === 'to_station') ? "善光寺大門" : "丹波島橋南";
@@ -349,11 +378,14 @@
             // 2. 今日が平日か休日かの判定
             currentDayType = await checkTodayType();
 
-            // 3. 基本UIの描画と初回ロード
+            // 3. 天気データの読み込み
+            fetchWeather();
+
+            // 4. 基本UIの描画と初回ロード
             updateUI();
             loadData();
 
-            // 4. 位置情報による停留所（stop1 / stop2）の自動最適化
+            // 5. 位置情報による停留所の自動最適化
             autoSelectClosestStop();
         })();
     </script>
