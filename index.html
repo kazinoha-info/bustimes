@@ -4,10 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BUS TIME</title>
+    
+    <!-- ================= PWA用の設定 ================= -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    
+    <!-- iOS (Safari) 向けの全画面 & アイコン対応設定 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="BUS TIME">
+    <link rel="apple-touch-icon" href="icon.png">
+    <!-- ============================================== -->
+
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=Noto+Sans+JP:wght@400;700;900&display=swap');
-        body { font-family: 'Noto Sans JP', sans-serif; background-color: #0f172a; }
+        body { 
+            font-family: 'Noto Sans JP', sans-serif; 
+            background-color: #0f172a; 
+            /* iOSのセーフエリア（ノッチ）対策 */
+            padding-top: env(safe-area-inset-top);
+        }
         .digital-font { font-family: 'Chakra Petch', sans-serif; }
         .bus-card { transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1); animation: slideUp 0.5s ease-out forwards; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -109,7 +126,7 @@
         let allBusData = [];
         let allNews = [];
 
-        // 天気予報の取得関数 (Open-Meteoを使用: 長野市付近の座標を設定)
+        // 天気予報の取得関数
         async function fetchWeather() {
             try {
                 const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=36.6513&longitude=138.1810&current_weather=true&timezone=Asia%2FTokyo");
@@ -118,14 +135,13 @@
                     const temp = Math.round(data.current_weather.temperature);
                     const code = data.current_weather.weathercode;
                     
-                    // WMO Weather interpretation codes (WW) に基づくアイコン変換
                     let icon = "☁️";
-                    if (code === 0) icon = "☀️"; // 快晴
-                    else if ([1, 2, 3].includes(code)) icon = "🌤️"; // 晴れ・曇りがち
-                    else if ([45, 48].includes(code)) icon = "🌫️"; // 霧
-                    else if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code)) icon = "☔"; // 雨・しぐれ
-                    else if ([71, 73, 75, 77, 85, 86].includes(code)) icon = "❄️"; // 雪
-                    else if ([95, 96, 99].includes(code)) icon = "⚡"; // 雷雨
+                    if (code === 0) icon = "☀️";
+                    else if ([1, 2, 3].includes(code)) icon = "🌤️";
+                    else if ([45, 48].includes(code)) icon = "🌫️";
+                    else if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code)) icon = "☔";
+                    else if ([71, 73, 75, 77, 85, 86].includes(code)) icon = "❄️";
+                    else if ([95, 96, 99].includes(code)) icon = "⚡";
 
                     document.getElementById('weatherIcon').innerText = icon;
                     document.getElementById('weatherTemp').innerText = `${temp}°C`;
@@ -317,13 +333,11 @@
             document.getElementById('detailContent').innerText = n.content;
         };
 
-        // 1分ごとの更新（時計の更新と、30分ごとに天気予報をリフレッシュ）
         let checkCount = 0;
         setInterval(() => {
             updateClock();
             if (allBusData.length > 0) render(allBusData);
             
-            // 30分に1回天気を更新
             checkCount++;
             if (checkCount >= 30) {
                 fetchWeather();
@@ -365,7 +379,6 @@
         (async () => {
             updateClock(); 
 
-            // 1. 時間によるルート自動選択
             const currentHour = new Date().getHours();
             if (currentHour < 12) {
                 currentRoute = 'to_zenkoji'; 
@@ -375,19 +388,22 @@
             document.getElementById('routeSelect').value = currentRoute;
             document.getElementById('btn-stop1').innerText = (currentRoute === 'to_station') ? "善光寺大門" : "丹波島橋南";
 
-            // 2. 今日が平日か休日かの判定
             currentDayType = await checkTodayType();
-
-            // 3. 天気データの読み込み
             fetchWeather();
-
-            // 4. 基本UIの描画と初回ロード
             updateUI();
             loadData();
-
-            // 5. 位置情報による停留所の自動最適化
             autoSelectClosestStop();
         })();
+
+        // ================= Service Workerの登録処理 =================
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('サービスワーカーが登録されました:', reg.scope))
+                    .catch(err => console.log('サービスワーカーの登録に失敗しました:', err));
+            });
+        }
+        // =========================================================
     </script>
 </body>
 </html>
